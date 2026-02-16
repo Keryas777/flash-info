@@ -1,13 +1,6 @@
 /* =========================
-   Flash Info – MVP (mock)
-   - Feed "articles vivants"
-   - Flash Info (panneau dédié) + modal
-   - Recherche + filtres
-   - Bandeau "N nouvelles mises à jour"
-   - Remonter en haut
+   Flash Info – MVP (mock) sans service worker
    ========================= */
-
-/* ========= Config ========= */
 
 const CATEGORY_LABELS = {
   tech: "Tech",
@@ -36,7 +29,6 @@ let userPrefs = {
   homeCategories: ["local", "world", "economy", "sport", "tech", "entertainment"],
 };
 
-const nowMs = () => Date.now();
 const isoMinutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
 
 /* ========= Mock data ========= */
@@ -58,7 +50,7 @@ let SUBJECTS = [
       viewpoints: "Certains analystes parlent d’escalade contrôlée ; d’autres d’un vrai risque de rupture.",
     },
     updates: [
-      { timestamp: isoMinutesAgo(10), is_bump: true, text: "Annonce d’une réunion à court terme.", sources: ["Source D", "Source E"] },
+      { timestamp: isoMinutesAgo(10), is_bump: true, text: "Annonce d’une réunion à court terme.", sources: ["BBC", "Reuters"] },
     ],
   },
   {
@@ -96,7 +88,7 @@ let SUBJECTS = [
       viewpoints: "Les analystes divergent sur la stratégie qui a fait basculer le match.",
     },
     updates: [
-      { timestamp: isoMinutesAgo(35), is_bump: true, text: "Réactions d’après-match et premières analyses.", sources: ["Source C"] },
+      { timestamp: isoMinutesAgo(35), is_bump: true, text: "Réactions d’après-match et premières analyses.", sources: ["L'Équipe"] },
     ],
   },
   {
@@ -157,11 +149,14 @@ let FLASH_ITEMS = [
 /* ========= DOM ========= */
 
 const feedEl = document.getElementById("feed");
+const updateBanner = document.getElementById("updateBanner");
+const updateBannerText = document.getElementById("updateBannerText");
+const applyUpdatesBtn = document.getElementById("applyUpdatesBtn");
+const backToTopBtn = document.getElementById("backToTopBtn");
 
 const flashPanelEl = document.getElementById("flashPanel");
 const flashListEl = document.getElementById("flashList");
 const overlayEl = document.getElementById("overlay");
-
 const openFlashBtn = document.getElementById("openFlashBtn");
 const closeFlashBtn = document.getElementById("closeFlashBtn");
 
@@ -171,12 +166,6 @@ const flashModalText = document.getElementById("flashModalText");
 const flashModalSources = document.getElementById("flashModalSources");
 const flashModalCloseBtn = document.getElementById("flashModalCloseBtn");
 const flashModalGoToSubjectBtn = document.getElementById("flashModalGoToSubjectBtn");
-
-const updateBanner = document.getElementById("updateBanner");
-const updateBannerText = document.getElementById("updateBannerText");
-const applyUpdatesBtn = document.getElementById("applyUpdatesBtn");
-
-const backToTopBtn = document.getElementById("backToTopBtn");
 
 const openSearchBtn = document.getElementById("openSearchBtn");
 const searchModal = document.getElementById("searchModal");
@@ -195,13 +184,13 @@ const articleUpdatedPill = document.getElementById("articleUpdatedPill");
 const tabs = Array.from(document.querySelectorAll(".tab"));
 const navBtns = Array.from(document.querySelectorAll(".nav-btn"));
 
-/* ========= UI State ========= */
+/* ========= State ========= */
 
 let currentTab = "home";
-let pendingSubjects = []; // nouveautés reçues pendant scroll
+let pendingSubjects = [];
 let isFlashOpen = false;
 
-/* ========= Helpers ========= */
+/* ========= Utils ========= */
 
 function escapeHTML(str) {
   return String(str ?? "")
@@ -233,10 +222,9 @@ function categoryBadge(category) {
   return CATEGORY_LABELS[category] || category;
 }
 
-function truncate(text, max = 120) {
+function truncate(text, max = 130) {
   const t = String(text ?? "");
-  if (t.length <= max) return t;
-  return t.slice(0, max).trimEnd() + "…";
+  return t.length <= max ? t : t.slice(0, max).trimEnd() + "…";
 }
 
 function mergeDedupById(existing, incoming) {
@@ -248,10 +236,7 @@ function mergeDedupById(existing, incoming) {
 /* ========= Feed ========= */
 
 function getVisibleSubjectsForTab(tab) {
-  let cats;
-  if (tab === "home") cats = userPrefs.homeCategories;
-  else cats = [tab];
-
+  const cats = (tab === "home") ? userPrefs.homeCategories : [tab];
   const list = SUBJECTS.filter(s => cats.includes(s.category));
   list.sort((a, b) => new Date(b.last_updated_at) - new Date(a.last_updated_at));
   return list;
@@ -295,7 +280,7 @@ function upsertSubjects(items) {
   SUBJECTS = Array.from(map.values());
 }
 
-/* ========= Flash Panel + Flash Modal ========= */
+/* ========= Flash ========= */
 
 function renderFlash() {
   const items = [...FLASH_ITEMS].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -353,6 +338,8 @@ function openFlashModal(flash) {
   openModal(flashModal);
 }
 
+/* ========= Modals ========= */
+
 function openModal(modalEl) {
   modalEl.classList.add("open");
   modalEl.setAttribute("aria-hidden", "false");
@@ -367,8 +354,8 @@ function closeModal(modalEl) {
 
 function renderUpdates(updates = []) {
   if (!updates.length) return `<p class="small">Aucune mise à jour enregistrée.</p>`;
-
   const sorted = [...updates].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
   return sorted.map(u => `
     <div class="card">
       <div class="card-top">
@@ -463,7 +450,6 @@ function runSearch() {
     searchResults.innerHTML = `<div class="card"><p class="card-summary">Aucun résultat.</p></div>`;
     return;
   }
-
   searchResults.innerHTML = list.map(subjectCardHTML).join("");
 }
 
@@ -496,7 +482,6 @@ function setActiveTab(tab) {
 
   tabs.forEach(t => t.classList.toggle("is-active", t.dataset.tab === tab));
 
-  // bottom nav: active home/world/local (les autres laissent home)
   navBtns.forEach(b => b.classList.remove("is-active"));
   const navKey = tab === "home" ? "home" : (["world", "local"].includes(tab) ? tab : "home");
   const btn = navBtns.find(x => x.dataset.nav === navKey);
@@ -508,7 +493,7 @@ function setActiveTab(tab) {
   scrollFeedToTop();
 }
 
-/* ========= Scroll behavior ========= */
+/* ========= Scroll ========= */
 
 function scrollFeedToTop() {
   feedEl.scrollTo({ top: 0, behavior: "smooth" });
@@ -516,11 +501,8 @@ function scrollFeedToTop() {
 
 feedEl.addEventListener("scroll", () => {
   const st = feedEl.scrollTop;
-
-  // bouton haut
   backToTopBtn.hidden = !(st > 600);
 
-  // si on remonte en haut, on applique pending automatiquement
   if (st < 20 && pendingSubjects.length) {
     applyPendingUpdates();
   }
@@ -530,7 +512,7 @@ backToTopBtn.addEventListener("click", scrollFeedToTop);
 
 /* ========= Events ========= */
 
-// Flash
+// Flash panel
 openFlashBtn.addEventListener("click", openFlashPanel);
 closeFlashBtn.addEventListener("click", closeFlashPanel);
 overlayEl.addEventListener("click", () => { if (isFlashOpen) closeFlashPanel(); });
@@ -539,7 +521,7 @@ overlayEl.addEventListener("click", () => { if (isFlashOpen) closeFlashPanel(); 
 flashModalCloseBtn.addEventListener("click", () => closeModal(flashModal));
 flashModal.addEventListener("click", (e) => { if (e.target === flashModal) closeModal(flashModal); });
 
-// Search
+// Search modal
 openSearchBtn.addEventListener("click", openSearch);
 searchCloseBtn.addEventListener("click", closeSearch);
 searchModal.addEventListener("click", (e) => { if (e.target === searchModal) closeSearch(); });
@@ -548,7 +530,7 @@ searchInput.addEventListener("input", runSearch);
 searchCategorySelect.addEventListener("change", runSearch);
 searchPeriodSelect.addEventListener("change", runSearch);
 
-// Article
+// Article modal
 articleBackBtn.addEventListener("click", () => closeModal(articleModal));
 articleModal.addEventListener("click", (e) => { if (e.target === articleModal) closeModal(articleModal); });
 
@@ -562,13 +544,13 @@ tabs.forEach(t => t.addEventListener("click", () => setActiveTab(t.dataset.tab))
 navBtns.forEach(b => b.addEventListener("click", () => {
   const key = b.dataset.nav;
   if (key === "search") return openSearch();
-  if (key === "settings") return openSearch(); // MVP: settings pas encore
+  if (key === "settings") return openSearch(); // MVP
   if (key === "home") return setActiveTab("home");
   if (key === "world") return setActiveTab("world");
   if (key === "local") return setActiveTab("local");
 }));
 
-// Click cards / flash items
+// Click cards + flash items
 document.addEventListener("click", (e) => {
   const card = e.target.closest?.(".card");
   if (card?.dataset?.subjectId) {
@@ -583,10 +565,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-/* ========= Simulation MAJ (MVP) =========
-   - toutes les 25s : simule une MAJ "bump" sur un sujet visible
-   - si l’utilisateur est scrollé => pending + bandeau
-*/
+/* ========= Simulation MAJ (MVP) ========= */
 setInterval(() => {
   if (searchModal.classList.contains("open") || articleModal.classList.contains("open")) return;
 
@@ -594,7 +573,6 @@ setInterval(() => {
   if (!visible.length) return;
 
   const pick = visible[Math.floor(Math.random() * visible.length)];
-
   const updated = {
     ...pick,
     last_updated_at: new Date().toISOString(),
@@ -614,13 +592,6 @@ setInterval(() => {
     showUpdateBanner();
   }
 }, 25_000);
-
-/* ========= Service worker ========= */
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
-  });
-}
 
 /* Init */
 renderFeed();
