@@ -1,5 +1,8 @@
 /* =========================
-   Flash Info – MVP (mock) sans service worker
+   Flash Info – MVP (mock)
+   - Photo support (image_url) + fallback emoji
+   - Simplified badges
+   - Add flag next to country code for "Monde" articles
    ========================= */
 
 const CATEGORY_LABELS = {
@@ -23,6 +26,50 @@ function emojiForCategory(cat) {
   }[cat] || "📰";
 }
 
+function escapeHTML(str) {
+  return String(str ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function truncate(text, max = 130) {
+  const t = String(text ?? "");
+  return t.length <= max ? t : t.slice(0, max).trimEnd() + "…";
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function formatDateTime(iso) {
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mo} ${hh}:${mm}`;
+}
+
+/**
+ * Convert "US" => "🇺🇸"
+ * Works for ISO 3166-1 alpha-2 codes (2 letters).
+ */
+function flagEmojiFromCC(cc) {
+  const code = String(cc || "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return "";
+  const A = 0x1F1E6;
+  const base = "A".charCodeAt(0);
+  const first = A + (code.charCodeAt(0) - base);
+  const second = A + (code.charCodeAt(1) - base);
+  return String.fromCodePoint(first, second);
+}
+
 let userPrefs = {
   country: "FR",
   language: "fr",
@@ -32,13 +79,14 @@ let userPrefs = {
 const isoMinutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
 
 /* ========= Mock data ========= */
-
+/* image_url: put any https image later. For now some null to test fallback. */
 let SUBJECTS = [
   {
     id: "s4",
     title: "Monde : tensions diplomatiques, discussions prévues",
     category: "world",
     primary_country: "GB",
+    image_url: null,
     summary: "Les échanges se durcissent mais une réunion est annoncée ; l’issue reste incertaine.",
     created_at: isoMinutesAgo(70),
     last_updated_at: isoMinutesAgo(10),
@@ -58,6 +106,7 @@ let SUBJECTS = [
     title: "Crypto : volatilité sur le marché après une annonce réglementaire",
     category: "economy",
     primary_country: "US",
+    image_url: null,
     summary: "Les marchés réagissent à une annonce réglementaire ; plusieurs scénarios restent possibles.",
     created_at: isoMinutesAgo(250),
     last_updated_at: isoMinutesAgo(12),
@@ -77,6 +126,7 @@ let SUBJECTS = [
     title: "Sport : résultat clé et impact sur le classement",
     category: "sport",
     primary_country: "FR",
+    image_url: null,
     summary: "Un résultat important redistribue les cartes ; les prochains matchs deviennent décisifs.",
     created_at: isoMinutesAgo(180),
     last_updated_at: isoMinutesAgo(35),
@@ -96,6 +146,7 @@ let SUBJECTS = [
     title: "Tech : nouvelle faille signalée, correctifs en cours",
     category: "tech",
     primary_country: null,
+    image_url: null,
     summary: "Une vulnérabilité est discutée ; des correctifs sont annoncés par plusieurs acteurs.",
     created_at: isoMinutesAgo(90),
     last_updated_at: isoMinutesAgo(90),
@@ -190,47 +241,35 @@ let currentTab = "home";
 let pendingSubjects = [];
 let isFlashOpen = false;
 
-/* ========= Utils ========= */
+/* ========= Helpers ========= */
 
-function escapeHTML(str) {
-  return String(str ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function formatTime(iso) {
-  const d = new Date(iso);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
-}
-
-function formatDateTime(iso) {
-  const d = new Date(iso);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${dd}/${mo} ${hh}:${mm}`;
-}
-
-function categoryBadge(category) {
+function categoryLabel(category) {
   if (category === "local") return userPrefs.country;
   return CATEGORY_LABELS[category] || category;
 }
 
-function truncate(text, max = 130) {
-  const t = String(text ?? "");
-  return t.length <= max ? t : t.slice(0, max).trimEnd() + "…";
+function worldCountryBadgeText(subject) {
+  const cc = subject.primary_country;
+  if (!cc) return "GLOBAL";
+  const flag = flagEmojiFromCC(cc);
+  // Only add the flag for category "world" as requested
+  return subject.category === "world" && flag ? `${cc} ${flag}` : cc;
 }
 
-function mergeDedupById(existing, incoming) {
-  const map = new Map(existing.map(x => [x.id, x]));
-  for (const it of incoming) map.set(it.id, it);
-  return Array.from(map.values());
+function mediaHTML(subject) {
+  if (subject.image_url) {
+    return `
+      <div class="card-media">
+        <img src="${escapeHTML(subject.image_url)}" alt="" loading="lazy" />
+      </div>
+    `;
+  }
+  // fallback emoji badge
+  return `
+    <div class="card-media">
+      <div class="media-fallback" aria-hidden="true">${escapeHTML(emojiForCategory(subject.category))}</div>
+    </div>
+  `;
 }
 
 /* ========= Feed ========= */
@@ -243,19 +282,22 @@ function getVisibleSubjectsForTab(tab) {
 }
 
 function subjectCardHTML(s) {
-  const badge = categoryBadge(s.category);
   const updated = formatDateTime(s.last_updated_at);
+
+  // Simplified badges:
+  // left: category + country (with flag for Monde)
+  // right: nothing (we move sources to meta to reduce UI-dev look)
+  const leftBadges = `
+    <span class="badge accent">${escapeHTML(categoryLabel(s.category))}</span>
+    <span class="badge">${escapeHTML(worldCountryBadgeText(s))}</span>
+  `;
 
   return `
     <div class="card" data-subject-id="${s.id}" role="button" tabindex="0">
-      <div class="card-media" aria-hidden="true">${emojiForCategory(s.category)}</div>
+      ${mediaHTML(s)}
 
       <div class="card-top">
-        <div class="badges">
-          <span class="badge accent">${escapeHTML(badge)}</span>
-          <span class="badge">${escapeHTML(s.primary_country ? s.primary_country : "GLOBAL")}</span>
-        </div>
-        <span class="badge">Sources: ${Number(s.sources_count || 0)}</span>
+        <div class="badges">${leftBadges}</div>
       </div>
 
       <div class="card-title">${escapeHTML(s.title)}</div>
@@ -263,7 +305,7 @@ function subjectCardHTML(s) {
 
       <div class="card-meta">
         <span>MAJ: ${updated}</span>
-        <span>→</span>
+        <span>${Number(s.sources_count || 0)} sources</span>
       </div>
     </div>
   `;
@@ -289,7 +331,7 @@ function renderFlash() {
       <p class="flash-text">${escapeHTML(f.text_short)}</p>
       <div class="flash-meta">
         <span>${formatTime(f.timestamp)}</span>
-        <span>${escapeHTML(categoryBadge(f.category))}</span>
+        <span>${escapeHTML(categoryLabel(f.category))}</span>
       </div>
     </div>
   `).join("");
@@ -310,9 +352,23 @@ function closeFlashPanel() {
   overlayEl.hidden = true;
 }
 
+function openModal(modalEl) {
+  modalEl.classList.add("open");
+  modalEl.setAttribute("aria-hidden", "false");
+}
+
+function closeModal(modalEl) {
+  modalEl.classList.remove("open");
+  modalEl.setAttribute("aria-hidden", "true");
+}
+
 function openFlashModal(flash) {
+  const cc = flash.primary_country;
+  const flag = (flash.category === "world") ? flagEmojiFromCC(cc) : "";
+  const ccText = cc ? (flag ? `${cc} ${flag}` : cc) : "GLOBAL";
+
   flashModalMeta.textContent =
-    `${formatDateTime(flash.timestamp)} · ${categoryBadge(flash.category)}${flash.primary_country ? " · " + flash.primary_country : ""}`;
+    `${formatDateTime(flash.timestamp)} · ${categoryLabel(flash.category)} · ${ccText}`;
 
   flashModalText.textContent = flash.text_full || flash.text_short;
 
@@ -338,18 +394,6 @@ function openFlashModal(flash) {
   openModal(flashModal);
 }
 
-/* ========= Modals ========= */
-
-function openModal(modalEl) {
-  modalEl.classList.add("open");
-  modalEl.setAttribute("aria-hidden", "false");
-}
-
-function closeModal(modalEl) {
-  modalEl.classList.remove("open");
-  modalEl.setAttribute("aria-hidden", "true");
-}
-
 /* ========= Article ========= */
 
 function renderUpdates(updates = []) {
@@ -360,7 +404,7 @@ function renderUpdates(updates = []) {
     <div class="card">
       <div class="card-top">
         <div class="badges">
-          <span class="badge">${formatDateTime(u.timestamp)}</span>
+          <span class="badge">${escapeHTML(formatDateTime(u.timestamp))}</span>
           ${u.is_bump ? `<span class="badge accent">MAJ</span>` : `<span class="badge">mineur</span>`}
         </div>
       </div>
@@ -377,7 +421,13 @@ function openArticleById(id) {
   const s = SUBJECTS.find(x => x.id === id);
   if (!s) return;
 
-  articleCategoryPill.textContent = categoryBadge(s.category);
+  // Pills: category + updated
+  // Optional: show country with flag for world inside category pill text
+  const catText = (s.category === "world" && s.primary_country)
+    ? `${CATEGORY_LABELS.world} · ${worldCountryBadgeText(s)}`
+    : categoryLabel(s.category);
+
+  articleCategoryPill.textContent = catText;
   articleUpdatedPill.textContent = `MAJ ${formatDateTime(s.last_updated_at)}`;
 
   articleContainer.innerHTML = `
@@ -466,6 +516,12 @@ function hideUpdateBanner() {
   updateBanner.hidden = true;
 }
 
+function mergeDedupById(existing, incoming) {
+  const map = new Map(existing.map(x => [x.id, x]));
+  for (const it of incoming) map.set(it.id, it);
+  return Array.from(map.values());
+}
+
 function applyPendingUpdates() {
   if (!pendingSubjects.length) return;
   upsertSubjects(pendingSubjects);
@@ -544,7 +600,7 @@ tabs.forEach(t => t.addEventListener("click", () => setActiveTab(t.dataset.tab))
 navBtns.forEach(b => b.addEventListener("click", () => {
   const key = b.dataset.nav;
   if (key === "search") return openSearch();
-  if (key === "settings") return openSearch(); // MVP
+  if (key === "settings") return openSearch(); // MVP placeholder
   if (key === "home") return setActiveTab("home");
   if (key === "world") return setActiveTab("world");
   if (key === "local") return setActiveTab("local");
@@ -573,6 +629,7 @@ setInterval(() => {
   if (!visible.length) return;
 
   const pick = visible[Math.floor(Math.random() * visible.length)];
+
   const updated = {
     ...pick,
     last_updated_at: new Date().toISOString(),
