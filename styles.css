@@ -3,7 +3,7 @@
    - Auto light/dark (iOS + Android)
    - Premium header (glass)
    - Card media supports image + fallback emoji
-   - Simplified badges
+   - Simplified badges (smaller)
    ========================= */
 
 :root{
@@ -84,7 +84,7 @@ html, body{
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  overflow: hidden; /* no global scroll */
+  overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   -webkit-text-size-adjust: 100%;
 }
@@ -245,7 +245,7 @@ a, button { -webkit-tap-highlight-color: transparent; }
   box-shadow: var(--shadowCard);
 }
 
-/* Media: image or fallback */
+/* Media */
 .card-media{
   height: 110px;
   border-radius: var(--r-sm);
@@ -314,15 +314,15 @@ a, button { -webkit-tap-highlight-color: transparent; }
   align-items:center;
 }
 
-/* Simplified badges */
+/* Simplified badges — PATCH 1 */
 .badge{
-  font-size: 11px;
-  padding: 4px 8px;
+  font-size: 10.5px;
+  padding: 3px 7px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: transparent;
   color: var(--muted);
-  font-weight: 750;
+  font-weight: 700;
 }
 .badge.accent{
   background: var(--accentSoft);
@@ -352,6 +352,11 @@ body{
   justify-content:space-between;
   color: var(--muted);
   font-size: var(--fs-meta);
+}
+
+/* “sources” more discreet — PATCH 2 */
+.card-meta span:last-child{
+  opacity: 0.75;
 }
 
 /* Overlay + Flash panel */
