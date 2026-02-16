@@ -1,20 +1,22 @@
-/* Flash Info PWA - Service Worker */
-const CACHE_NAME = "flashinfo-v2";
+const CACHE_NAME = "flashinfo-v3";
 
-const ASSETS = [
-  "./",
-  "./index.html",
+/*
+  IMPORTANT :
+  - On ne met PAS index.html en cache.
+  - On ne met PAS app.js en cache.
+  - On garde le cache uniquement pour styles / assets statiques.
+*/
+
+const STATIC_ASSETS = [
   "./styles.css",
-  "./app.js",
   "./manifest.webmanifest",
-  // Icônes si tu les ajoutes :
   // "./icons/icon-192.png",
-  // "./icons/icon-512.png",
+  // "./icons/icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
   );
   self.skipWaiting();
 });
@@ -22,65 +24,32 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys.map((key) => (key !== CACHE_NAME ? caches.delete(key) : null))
-      )
+      Promise.all(keys.map((key) => caches.delete(key)))
     )
   );
   self.clients.claim();
 });
 
-// Stratégie :
-// - HTML (navigation) -> Network First (évite de rester coincé sur une vieille version)
-// - Assets (css/js/etc.) -> Cache First
 self.addEventListener("fetch", (event) => {
-  const req = event.request;
-  const url = new URL(req.url);
+  const request = event.request;
 
-  // On ne gère que le même origin
-  if (url.origin !== self.location.origin) return;
-
-  // Navigation / page HTML
-  const isNavigation =
-    req.mode === "navigate" ||
-    (req.destination === "document") ||
-    (req.headers.get("accept") || "").includes("text/html");
-
-  if (isNavigation) {
-    event.respondWith(networkFirst(req));
+  // Toujours aller chercher le HTML en réseau
+  if (request.mode === "navigate") {
+    event.respondWith(fetch(request));
     return;
   }
 
-  // Assets
-  event.respondWith(cacheFirst(req));
+  // Cache-first uniquement pour les assets statiques
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(request).then((response) => {
+        return caches.open(CACHE_NAME).then((cache) => {
+          cache.put(request, response.clone());
+          return response;
+        });
+      });
+    })
+  );
 });
-
-async function networkFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
-  try {
-    const fresh = await fetch(request);
-    // Met en cache la version fraîche
-    cache.put(request, fresh.clone());
-    return fresh;
-  } catch (err) {
-    const cached = await cache.match(request);
-    if (cached) return cached;
-    // fallback sur index.html si dispo
-    const fallback = await cache.match("./index.html");
-    return fallback || Response.error();
-  }
-}
-
-async function cacheFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(request);
-  if (cached) return cached;
-
-  try {
-    const fresh = await fetch(request);
-    cache.put(request, fresh.clone());
-    return fresh;
-  } catch (err) {
-    return Response.error();
-  }
-}
