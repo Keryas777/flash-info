@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0b0f17" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Flash Info</title>
+
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="app" id="appRoot">
+    <!-- HEADER FIXE -->
+    <header class="header" role="banner">
+      <div class="brand">
+        <span class="logo">⚡</span>
+        <span class="title">Flash Info</span>
+      </div>
+
+      <div class="header-actions">
+        <button class="icon-btn" id="openSearchBtn" aria-label="Recherche">🔎</button>
+        <button class="icon-btn" id="openFlashBtn" aria-label="Ouvrir Flash Info">⚡</button>
+      </div>
+    </header>
+
+    <!-- ONGLET CATÉGORIE (fixe, pas de scroll de l’interface) -->
+    <nav class="tabs" aria-label="Catégories">
+      <button class="tab is-active" data-tab="home">Accueil</button>
+      <button class="tab" data-tab="local">Pays</button>
+      <button class="tab" data-tab="world">Monde</button>
+      <button class="tab" data-tab="economy">Économie</button>
+      <button class="tab" data-tab="tech">Tech</button>
+      <button class="tab" data-tab="sport">Sport</button>
+      <button class="tab" data-tab="entertainment">Divertissement</button>
+    </nav>
+
+    <!-- CONTENU (scroll uniquement dans les zones internes) -->
+    <main class="main" role="main">
+      <!-- BANNER "N nouvelles MAJ" (dans la zone scroll du feed, pas l’interface) -->
+      <div class="update-banner" id="updateBanner" hidden>
+        <span id="updateBannerText">N nouvelles mises à jour</span>
+        <button class="banner-btn" id="applyUpdatesBtn">Voir</button>
+      </div>
+
+      <!-- FEED -->
+      <section class="feed" id="feed" aria-label="Fil d’actualité"></section>
+
+      <!-- Bouton remonter -->
+      <button class="back-to-top" id="backToTopBtn" aria-label="Remonter" hidden>⬆️</button>
+    </main>
+
+    <!-- BOTTOM NAV FIXE -->
+    <footer class="bottom-nav" role="navigation" aria-label="Navigation">
+      <button class="nav-btn is-active" data-nav="home">🏠</button>
+      <button class="nav-btn" data-nav="world">🌍</button>
+      <button class="nav-btn" data-nav="local">🏳️</button>
+      <button class="nav-btn" data-nav="search">🔎</button>
+      <button class="nav-btn" data-nav="settings">⚙️</button>
+    </footer>
+  </div>
+
+  <!-- FLASH PANEL (colonne dédiée style overlay) -->
+  <aside class="flash-panel" id="flashPanel" aria-label="Flash Info" aria-hidden="true">
+    <div class="flash-header">
+      <div class="flash-title">Flash Info</div>
+      <button class="icon-btn" id="closeFlashBtn" aria-label="Fermer">✕</button>
+    </div>
+    <div class="flash-list" id="flashList"></div>
+  </aside>
+  <div class="overlay" id="overlay" hidden></div>
+
+  <!-- MODAL FLASH -->
+  <div class="modal" id="flashModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-content">
+        <div class="modal-title" id="flashModalTitle">Flash</div>
+        <div class="modal-meta" id="flashModalMeta"></div>
+        <p class="modal-text" id="flashModalText"></p>
+        <div class="modal-sources" id="flashModalSources"></div>
+
+        <div class="modal-actions">
+          <button class="btn" id="flashModalCloseBtn">Fermer</button>
+          <button class="btn primary" id="flashModalGoToSubjectBtn" hidden>Lire l’article</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL SEARCH -->
+  <div class="modal" id="searchModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-content">
+        <div class="modal-title">Recherche</div>
+
+        <div class="search-row">
+          <input id="searchInput" class="search-input" type="search" placeholder="Rechercher un article…" />
+          <button class="btn" id="searchCloseBtn">Fermer</button>
+        </div>
+
+        <div class="search-filters">
+          <select id="searchCategorySelect" class="select">
+            <option value="all">Toutes catégories</option>
+            <option value="local">Pays</option>
+            <option value="world">Monde</option>
+            <option value="economy">Économie</option>
+            <option value="tech">Tech</option>
+            <option value="sport">Sport</option>
+            <option value="entertainment">Divertissement</option>
+          </select>
+          <select id="searchPeriodSelect" class="select">
+            <option value="all">Toute période</option>
+            <option value="7">7 jours</option>
+            <option value="30">30 jours</option>
+            <option value="365">1 an</option>
+          </select>
+        </div>
+
+        <div class="search-results" id="searchResults"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE ARTICLE (SPA) -->
+  <div class="modal" id="articleModal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-sheet modal-sheet-full">
+      <div class="article-topbar">
+        <button class="btn" id="articleBackBtn">← Retour</button>
+        <div class="article-topbar-right">
+          <span class="pill" id="articleCategoryPill"></span>
+          <span class="pill" id="articleUpdatedPill"></span>
+        </div>
+      </div>
+
+      <article class="article" id="articleContainer"></article>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
