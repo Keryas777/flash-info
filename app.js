@@ -2,7 +2,8 @@
    Flash Info – MVP (mock)
    - Photo support (image_url) + fallback emoji
    - Simplified badges
-   - Add flag next to country code for "Monde" articles
+   - Flag next to country code for "Monde"
+   - If image fails to load -> switch to emoji fallback
    ========================= */
 
 const CATEGORY_LABELS = {
@@ -56,18 +57,16 @@ function formatDateTime(iso) {
   return `${dd}/${mo} ${hh}:${mm}`;
 }
 
-/**
- * Convert "US" => "🇺🇸"
- * Works for ISO 3166-1 alpha-2 codes (2 letters).
- */
+/* "US" => "🇺🇸" */
 function flagEmojiFromCC(cc) {
   const code = String(cc || "").trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(code)) return "";
   const A = 0x1F1E6;
   const base = "A".charCodeAt(0);
-  const first = A + (code.charCodeAt(0) - base);
-  const second = A + (code.charCodeAt(1) - base);
-  return String.fromCodePoint(first, second);
+  return String.fromCodePoint(
+    A + (code.charCodeAt(0) - base),
+    A + (code.charCodeAt(1) - base)
+  );
 }
 
 let userPrefs = {
@@ -79,14 +78,13 @@ let userPrefs = {
 const isoMinutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
 
 /* ========= Mock data ========= */
-/* image_url: put any https image later. For now some null to test fallback. */
 let SUBJECTS = [
   {
     id: "s4",
     title: "Monde : tensions diplomatiques, discussions prévues",
     category: "world",
     primary_country: "GB",
-    image_url: null,
+    image_url: null, // put a real https image later
     summary: "Les échanges se durcissent mais une réunion est annoncée ; l’issue reste incertaine.",
     created_at: isoMinutesAgo(70),
     last_updated_at: isoMinutesAgo(10),
@@ -198,7 +196,6 @@ let FLASH_ITEMS = [
 ];
 
 /* ========= DOM ========= */
-
 const feedEl = document.getElementById("feed");
 const updateBanner = document.getElementById("updateBanner");
 const updateBannerText = document.getElementById("updateBannerText");
@@ -236,13 +233,11 @@ const tabs = Array.from(document.querySelectorAll(".tab"));
 const navBtns = Array.from(document.querySelectorAll(".nav-btn"));
 
 /* ========= State ========= */
-
 let currentTab = "home";
 let pendingSubjects = [];
 let isFlashOpen = false;
 
 /* ========= Helpers ========= */
-
 function categoryLabel(category) {
   if (category === "local") return userPrefs.country;
   return CATEGORY_LABELS[category] || category;
@@ -252,28 +247,37 @@ function worldCountryBadgeText(subject) {
   const cc = subject.primary_country;
   if (!cc) return "GLOBAL";
   const flag = flagEmojiFromCC(cc);
-  // Only add the flag for category "world" as requested
   return subject.category === "world" && flag ? `${cc} ${flag}` : cc;
 }
 
+/* Media HTML:
+   - If image_url provided: render <img> with onerror -> swap to emoji fallback
+   - Else: render fallback emoji immediately
+*/
 function mediaHTML(subject) {
-  if (subject.image_url) {
-    return `
-      <div class="card-media">
-        <img src="${escapeHTML(subject.image_url)}" alt="" loading="lazy" />
-      </div>
-    `;
+  const fallback = `<div class="media-fallback" aria-hidden="true">${escapeHTML(emojiForCategory(subject.category))}</div>`;
+
+  if (!subject.image_url) {
+    return `<div class="card-media">${fallback}</div>`;
   }
-  // fallback emoji badge
+
+  const safeUrl = escapeHTML(subject.image_url);
+
+  // NOTE: onerror replaces the whole container content with fallback
   return `
-    <div class="card-media">
-      <div class="media-fallback" aria-hidden="true">${escapeHTML(emojiForCategory(subject.category))}</div>
+    <div class="card-media" data-fallback="${escapeHTML(emojiForCategory(subject.category))}">
+      <img
+        src="${safeUrl}"
+        alt=""
+        loading="lazy"
+        onerror="this.parentElement.innerHTML='<div class=&quot;media-fallback&quot; aria-hidden=&quot;true&quot;>'+this.parentElement.dataset.fallback+'</div>';"
+      />
+      ${/* keep fallback hidden until load error, but if you want, you can show it behind */""}
     </div>
   `;
 }
 
 /* ========= Feed ========= */
-
 function getVisibleSubjectsForTab(tab) {
   const cats = (tab === "home") ? userPrefs.homeCategories : [tab];
   const list = SUBJECTS.filter(s => cats.includes(s.category));
@@ -284,20 +288,14 @@ function getVisibleSubjectsForTab(tab) {
 function subjectCardHTML(s) {
   const updated = formatDateTime(s.last_updated_at);
 
-  // Simplified badges:
-  // left: category + country (with flag for Monde)
-  // right: nothing (we move sources to meta to reduce UI-dev look)
-  const leftBadges = `
-    <span class="badge accent">${escapeHTML(categoryLabel(s.category))}</span>
-    <span class="badge">${escapeHTML(worldCountryBadgeText(s))}</span>
-  `;
-
   return `
     <div class="card" data-subject-id="${s.id}" role="button" tabindex="0">
       ${mediaHTML(s)}
-
       <div class="card-top">
-        <div class="badges">${leftBadges}</div>
+        <div class="badges">
+          <span class="badge accent">${escapeHTML(categoryLabel(s.category))}</span>
+          <span class="badge">${escapeHTML(worldCountryBadgeText(s))}</span>
+        </div>
       </div>
 
       <div class="card-title">${escapeHTML(s.title)}</div>
@@ -323,7 +321,6 @@ function upsertSubjects(items) {
 }
 
 /* ========= Flash ========= */
-
 function renderFlash() {
   const items = [...FLASH_ITEMS].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   flashListEl.innerHTML = items.map(f => `
@@ -395,7 +392,6 @@ function openFlashModal(flash) {
 }
 
 /* ========= Article ========= */
-
 function renderUpdates(updates = []) {
   if (!updates.length) return `<p class="small">Aucune mise à jour enregistrée.</p>`;
   const sorted = [...updates].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -421,8 +417,6 @@ function openArticleById(id) {
   const s = SUBJECTS.find(x => x.id === id);
   if (!s) return;
 
-  // Pills: category + updated
-  // Optional: show country with flag for world inside category pill text
   const catText = (s.category === "world" && s.primary_country)
     ? `${CATEGORY_LABELS.world} · ${worldCountryBadgeText(s)}`
     : categoryLabel(s.category);
@@ -459,7 +453,6 @@ function openArticleById(id) {
 }
 
 /* ========= Search ========= */
-
 function openSearch() {
   openModal(searchModal);
   setTimeout(() => searchInput.focus(), 40);
@@ -504,7 +497,6 @@ function runSearch() {
 }
 
 /* ========= Update banner ========= */
-
 function showUpdateBanner() {
   const count = pendingSubjects.length;
   if (count <= 0) return;
@@ -532,7 +524,6 @@ function applyPendingUpdates() {
 }
 
 /* ========= Navigation ========= */
-
 function setActiveTab(tab) {
   currentTab = tab;
 
@@ -550,7 +541,6 @@ function setActiveTab(tab) {
 }
 
 /* ========= Scroll ========= */
-
 function scrollFeedToTop() {
   feedEl.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -567,17 +557,13 @@ feedEl.addEventListener("scroll", () => {
 backToTopBtn.addEventListener("click", scrollFeedToTop);
 
 /* ========= Events ========= */
-
-// Flash panel
 openFlashBtn.addEventListener("click", openFlashPanel);
 closeFlashBtn.addEventListener("click", closeFlashPanel);
 overlayEl.addEventListener("click", () => { if (isFlashOpen) closeFlashPanel(); });
 
-// Flash modal
 flashModalCloseBtn.addEventListener("click", () => closeModal(flashModal));
 flashModal.addEventListener("click", (e) => { if (e.target === flashModal) closeModal(flashModal); });
 
-// Search modal
 openSearchBtn.addEventListener("click", openSearch);
 searchCloseBtn.addEventListener("click", closeSearch);
 searchModal.addEventListener("click", (e) => { if (e.target === searchModal) closeSearch(); });
@@ -586,27 +572,22 @@ searchInput.addEventListener("input", runSearch);
 searchCategorySelect.addEventListener("change", runSearch);
 searchPeriodSelect.addEventListener("change", runSearch);
 
-// Article modal
 articleBackBtn.addEventListener("click", () => closeModal(articleModal));
 articleModal.addEventListener("click", (e) => { if (e.target === articleModal) closeModal(articleModal); });
 
-// Update banner
 applyUpdatesBtn.addEventListener("click", applyPendingUpdates);
 
-// Tabs
 tabs.forEach(t => t.addEventListener("click", () => setActiveTab(t.dataset.tab)));
 
-// Bottom nav
 navBtns.forEach(b => b.addEventListener("click", () => {
   const key = b.dataset.nav;
   if (key === "search") return openSearch();
-  if (key === "settings") return openSearch(); // MVP placeholder
+  if (key === "settings") return openSearch(); // placeholder
   if (key === "home") return setActiveTab("home");
   if (key === "world") return setActiveTab("world");
   if (key === "local") return setActiveTab("local");
 }));
 
-// Click cards + flash items
 document.addEventListener("click", (e) => {
   const card = e.target.closest?.(".card");
   if (card?.dataset?.subjectId) {
