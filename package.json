@@ -8,6 +8,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "rss-parser": "^3.13.0"
+    "fast-xml-parser": "^4.3.6"
   }
 }
