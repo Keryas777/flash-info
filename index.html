@@ -2,14 +2,19 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#0b0f17" />
+
+  <!-- Mobile-first -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0f1115" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
   <title>Flash Info</title>
 
+  <!-- PWA manifest (OK sans service worker) -->
   <link rel="manifest" href="manifest.webmanifest" />
+
+  <!-- Styles -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 
@@ -18,7 +23,7 @@
     <!-- HEADER FIXE -->
     <header class="header" role="banner">
       <div class="brand">
-        <span class="logo">⚡</span>
+        <span class="logo" aria-hidden="true">⚡</span>
         <span class="title">Flash Info</span>
       </div>
 
@@ -28,7 +33,7 @@
       </div>
     </header>
 
-    <!-- ONGLET CATÉGORIE (fixe, pas de scroll de l’interface) -->
+    <!-- TABS CATÉGORIES (fixe) -->
     <nav class="tabs" aria-label="Catégories">
       <button class="tab is-active" data-tab="home">Accueil</button>
       <button class="tab" data-tab="local">Pays</button>
@@ -39,32 +44,32 @@
       <button class="tab" data-tab="entertainment">Divertissement</button>
     </nav>
 
-    <!-- CONTENU (scroll uniquement dans les zones internes) -->
+    <!-- CONTENU (seules les zones internes scrollent) -->
     <main class="main" role="main">
-      <!-- BANNER "N nouvelles MAJ" (dans la zone scroll du feed, pas l’interface) -->
+      <!-- Bandeau MAJ -->
       <div class="update-banner" id="updateBanner" hidden>
         <span id="updateBannerText">N nouvelles mises à jour</span>
         <button class="banner-btn" id="applyUpdatesBtn">Voir</button>
       </div>
 
-      <!-- FEED -->
+      <!-- Feed -->
       <section class="feed" id="feed" aria-label="Fil d’actualité"></section>
 
-      <!-- Bouton remonter -->
+      <!-- Back-to-top -->
       <button class="back-to-top" id="backToTopBtn" aria-label="Remonter" hidden>⬆️</button>
     </main>
 
     <!-- BOTTOM NAV FIXE -->
     <footer class="bottom-nav" role="navigation" aria-label="Navigation">
-      <button class="nav-btn is-active" data-nav="home">🏠</button>
-      <button class="nav-btn" data-nav="world">🌍</button>
-      <button class="nav-btn" data-nav="local">🏳️</button>
-      <button class="nav-btn" data-nav="search">🔎</button>
-      <button class="nav-btn" data-nav="settings">⚙️</button>
+      <button class="nav-btn is-active" data-nav="home" aria-label="Accueil">🏠</button>
+      <button class="nav-btn" data-nav="world" aria-label="Monde">🌍</button>
+      <button class="nav-btn" data-nav="local" aria-label="Pays">🏳️</button>
+      <button class="nav-btn" data-nav="search" aria-label="Recherche">🔎</button>
+      <button class="nav-btn" data-nav="settings" aria-label="Profil">⚙️</button>
     </footer>
   </div>
 
-  <!-- FLASH PANEL (colonne dédiée style overlay) -->
+  <!-- FLASH PANEL -->
   <aside class="flash-panel" id="flashPanel" aria-label="Flash Info" aria-hidden="true">
     <div class="flash-header">
       <div class="flash-title">Flash Info</div>
@@ -72,6 +77,8 @@
     </div>
     <div class="flash-list" id="flashList"></div>
   </aside>
+
+  <!-- Overlay -->
   <div class="overlay" id="overlay" hidden></div>
 
   <!-- MODAL FLASH -->
@@ -79,7 +86,7 @@
     <div class="modal-sheet">
       <div class="modal-handle"></div>
       <div class="modal-content">
-        <div class="modal-title" id="flashModalTitle">Flash</div>
+        <div class="modal-title">Flash</div>
         <div class="modal-meta" id="flashModalMeta"></div>
         <p class="modal-text" id="flashModalText"></p>
         <div class="modal-sources" id="flashModalSources"></div>
@@ -127,7 +134,7 @@
     </div>
   </div>
 
-  <!-- PAGE ARTICLE (SPA) -->
+  <!-- ARTICLE (dans la page) -->
   <div class="modal" id="articleModal" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal-sheet modal-sheet-full">
       <div class="article-topbar">
@@ -142,6 +149,7 @@
     </div>
   </div>
 
+  <!-- App -->
   <script src="app.js"></script>
 </body>
 </html>
