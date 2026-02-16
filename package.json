@@ -1,0 +1,13 @@
+{
+  "name": "flash-info",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Flash Info - ingestion RSS + synthèse Gemini",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "rss-parser": "^3.13.0"
+  }
+}
