@@ -1,6 +1,13 @@
 /* =========================
-   Données mock (MVP)
+   Flash Info – MVP (mock)
+   - Feed "articles vivants"
+   - Flash Info (panneau dédié) + modal
+   - Recherche + filtres
+   - Bandeau "N nouvelles mises à jour"
+   - Remonter en haut
    ========================= */
+
+/* ========= Config ========= */
 
 const CATEGORY_LABELS = {
   tech: "Tech",
@@ -12,34 +19,65 @@ const CATEGORY_LABELS = {
   home: "Accueil",
 };
 
+function emojiForCategory(cat) {
+  return {
+    tech: "💻",
+    economy: "💼",
+    sport: "⚽",
+    entertainment: "🎬",
+    local: "🏳️",
+    world: "🌍",
+  }[cat] || "📰";
+}
+
 let userPrefs = {
   country: "FR",
   language: "fr",
-  // Catégories affichées sur l'accueil:
   homeCategories: ["local", "world", "economy", "sport", "tech", "entertainment"],
 };
 
-const now = () => Date.now();
-const minutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
+const nowMs = () => Date.now();
+const isoMinutesAgo = (m) => new Date(Date.now() - m * 60_000).toISOString();
+
+/* ========= Mock data ========= */
 
 let SUBJECTS = [
+  {
+    id: "s4",
+    title: "Monde : tensions diplomatiques, discussions prévues",
+    category: "world",
+    primary_country: "GB",
+    summary: "Les échanges se durcissent mais une réunion est annoncée ; l’issue reste incertaine.",
+    created_at: isoMinutesAgo(70),
+    last_updated_at: isoMinutesAgo(10),
+    sources_count: 5,
+    sections: {
+      known: "Des déclarations officielles ont été publiées par plusieurs acteurs.",
+      assumed: "Une phase de négociation pourrait s’ouvrir rapidement, mais le cadre reste fragile.",
+      unknown: "Les concessions possibles et le calendrier exact restent inconnus.",
+      viewpoints: "Certains analystes parlent d’escalade contrôlée ; d’autres d’un vrai risque de rupture.",
+    },
+    updates: [
+      { timestamp: isoMinutesAgo(10), is_bump: true, text: "Annonce d’une réunion à court terme.", sources: ["Source D", "Source E"] },
+    ],
+  },
   {
     id: "s1",
     title: "Crypto : volatilité sur le marché après une annonce réglementaire",
     category: "economy",
     primary_country: "US",
     summary: "Les marchés réagissent à une annonce réglementaire ; plusieurs scénarios restent possibles.",
-    created_at: minutesAgo(250),
-    last_updated_at: minutesAgo(12),
+    created_at: isoMinutesAgo(250),
+    last_updated_at: isoMinutesAgo(12),
     sources_count: 6,
     sections: {
       known: "Une annonce réglementaire a été publiée et plusieurs acteurs du marché ont réagi.",
       assumed: "Les effets à court terme dépendront des interprétations et de l’application réelle.",
-      unknown: "Le calendrier exact et le périmètre final restent flous à ce stade.",
+      unknown: "Le périmètre final et le calendrier d’application restent flous à ce stade.",
       viewpoints: "Certains y voient une clarification positive ; d’autres craignent une contrainte accrue.",
     },
     updates: [
-      { timestamp: minutesAgo(12), is_bump: true, text: "Nouveau communiqué : précisions sur le calendrier.", sources: ["Source A", "Source B"] },
+      { timestamp: isoMinutesAgo(12), is_bump: true, text: "Nouveau communiqué : précisions sur le calendrier.", sources: ["Source A", "Source B"] },
     ],
   },
   {
@@ -48,17 +86,17 @@ let SUBJECTS = [
     category: "sport",
     primary_country: "FR",
     summary: "Un résultat important redistribue les cartes ; les prochains matchs deviennent décisifs.",
-    created_at: minutesAgo(180),
-    last_updated_at: minutesAgo(35),
+    created_at: isoMinutesAgo(180),
+    last_updated_at: isoMinutesAgo(35),
     sources_count: 3,
     sections: {
       known: "Le match s’est terminé sur un score serré.",
       assumed: "La dynamique psychologique pourrait peser sur les prochaines rencontres.",
-      unknown: "Les choix de composition et les blessures restent à confirmer.",
+      unknown: "Les blessures et choix tactiques restent à confirmer.",
       viewpoints: "Les analystes divergent sur la stratégie qui a fait basculer le match.",
     },
     updates: [
-      { timestamp: minutesAgo(35), is_bump: true, text: "Réactions d’après-match et premières analyses.", sources: ["Source C"] },
+      { timestamp: isoMinutesAgo(35), is_bump: true, text: "Réactions d’après-match et premières analyses.", sources: ["Source C"] },
     ],
   },
   {
@@ -67,8 +105,8 @@ let SUBJECTS = [
     category: "tech",
     primary_country: null,
     summary: "Une vulnérabilité est discutée ; des correctifs sont annoncés par plusieurs acteurs.",
-    created_at: minutesAgo(90),
-    last_updated_at: minutesAgo(90),
+    created_at: isoMinutesAgo(90),
+    last_updated_at: isoMinutesAgo(90),
     sources_count: 4,
     sections: {
       known: "La faille concerne un composant largement utilisé.",
@@ -78,31 +116,12 @@ let SUBJECTS = [
     },
     updates: [],
   },
-  {
-    id: "s4",
-    title: "Monde : tensions diplomatiques, discussions prévues",
-    category: "world",
-    primary_country: "GB",
-    summary: "Les échanges se durcissent mais une réunion est annoncée ; l’issue reste incertaine.",
-    created_at: minutesAgo(70),
-    last_updated_at: minutesAgo(10),
-    sources_count: 5,
-    sections: {
-      known: "Des déclarations officielles ont été publiées.",
-      assumed: "Une phase de négociation pourrait s’ouvrir rapidement.",
-      unknown: "Les concessions possibles ne sont pas connues.",
-      viewpoints: "Les observateurs s’opposent sur les motivations réelles des acteurs.",
-    },
-    updates: [
-      { timestamp: minutesAgo(10), is_bump: true, text: "Annonce d’une réunion à court terme.", sources: ["Source D", "Source E"] },
-    ],
-  },
 ];
 
 let FLASH_ITEMS = [
   {
     id: "f1",
-    timestamp: minutesAgo(2),
+    timestamp: isoMinutesAgo(2),
     category: "world",
     primary_country: "GB",
     importance_level: "high",
@@ -113,7 +132,7 @@ let FLASH_ITEMS = [
   },
   {
     id: "f2",
-    timestamp: minutesAgo(6),
+    timestamp: isoMinutesAgo(6),
     category: "sport",
     primary_country: "FR",
     importance_level: "normal",
@@ -124,7 +143,7 @@ let FLASH_ITEMS = [
   },
   {
     id: "f3",
-    timestamp: minutesAgo(14),
+    timestamp: isoMinutesAgo(14),
     category: "tech",
     primary_country: null,
     importance_level: "normal",
@@ -135,34 +154,7 @@ let FLASH_ITEMS = [
   },
 ];
 
-/* =========================
-   Utilitaires
-   ========================= */
-
-function formatTime(iso) {
-  const d = new Date(iso);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
-}
-function formatDateTime(iso) {
-  const d = new Date(iso);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${dd}/${mo} ${hh}:${mm}`;
-}
-
-function categoryBadge(category) {
-  // label "Pays" devient le pays user si category=local
-  if (category === "local") return userPrefs.country;
-  return CATEGORY_LABELS[category] || category;
-}
-
-/* =========================
-   Éléments DOM
-   ========================= */
+/* ========= DOM ========= */
 
 const feedEl = document.getElementById("feed");
 
@@ -174,7 +166,6 @@ const openFlashBtn = document.getElementById("openFlashBtn");
 const closeFlashBtn = document.getElementById("closeFlashBtn");
 
 const flashModal = document.getElementById("flashModal");
-const flashModalTitle = document.getElementById("flashModalTitle");
 const flashModalMeta = document.getElementById("flashModalMeta");
 const flashModalText = document.getElementById("flashModalText");
 const flashModalSources = document.getElementById("flashModalSources");
@@ -204,28 +195,64 @@ const articleUpdatedPill = document.getElementById("articleUpdatedPill");
 const tabs = Array.from(document.querySelectorAll(".tab"));
 const navBtns = Array.from(document.querySelectorAll(".nav-btn"));
 
-/* =========================
-   État UI
-   ========================= */
+/* ========= UI State ========= */
 
 let currentTab = "home";
 let pendingSubjects = []; // nouveautés reçues pendant scroll
 let isFlashOpen = false;
-let lastFetchAt = now();
 
-/* =========================
-   Rendu Feed
-   ========================= */
+/* ========= Helpers ========= */
+
+function escapeHTML(str) {
+  return String(str ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function formatDateTime(iso) {
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mo} ${hh}:${mm}`;
+}
+
+function categoryBadge(category) {
+  if (category === "local") return userPrefs.country;
+  return CATEGORY_LABELS[category] || category;
+}
+
+function truncate(text, max = 120) {
+  const t = String(text ?? "");
+  if (t.length <= max) return t;
+  return t.slice(0, max).trimEnd() + "…";
+}
+
+function mergeDedupById(existing, incoming) {
+  const map = new Map(existing.map(x => [x.id, x]));
+  for (const it of incoming) map.set(it.id, it);
+  return Array.from(map.values());
+}
+
+/* ========= Feed ========= */
 
 function getVisibleSubjectsForTab(tab) {
   let cats;
   if (tab === "home") cats = userPrefs.homeCategories;
   else cats = [tab];
 
-  // Simple MVP : pas de filtrage pays/langue avancé ici
   const list = SUBJECTS.filter(s => cats.includes(s.category));
-
-  // Tri = remonter à la date de MAJ
   list.sort((a, b) => new Date(b.last_updated_at) - new Date(a.last_updated_at));
   return list;
 }
@@ -236,16 +263,18 @@ function subjectCardHTML(s) {
 
   return `
     <div class="card" data-subject-id="${s.id}" role="button" tabindex="0">
+      <div class="card-media" aria-hidden="true">${emojiForCategory(s.category)}</div>
+
       <div class="card-top">
         <div class="badges">
-          <span class="badge accent">${badge}</span>
-          ${s.primary_country ? `<span class="badge">${s.primary_country}</span>` : `<span class="badge">GLOBAL</span>`}
+          <span class="badge accent">${escapeHTML(badge)}</span>
+          <span class="badge">${escapeHTML(s.primary_country ? s.primary_country : "GLOBAL")}</span>
         </div>
-        <span class="badge">Sources: ${s.sources_count}</span>
+        <span class="badge">Sources: ${Number(s.sources_count || 0)}</span>
       </div>
 
       <div class="card-title">${escapeHTML(s.title)}</div>
-      <p class="card-summary">${escapeHTML(s.summary)}</p>
+      <p class="card-summary">${escapeHTML(truncate(s.summary, 130))}</p>
 
       <div class="card-meta">
         <span>MAJ: ${updated}</span>
@@ -260,28 +289,22 @@ function renderFeed() {
   feedEl.innerHTML = subjects.map(subjectCardHTML).join("");
 }
 
-function prependOrUpdateSubjects(items) {
-  // Merge: si le sujet existe, mettre à jour + remonter
+function upsertSubjects(items) {
   const map = new Map(SUBJECTS.map(s => [s.id, s]));
-  for (const it of items) {
-    map.set(it.id, it);
-  }
+  for (const it of items) map.set(it.id, it);
   SUBJECTS = Array.from(map.values());
-  renderFeed();
 }
 
-/* =========================
-   Flash panel + modal flash
-   ========================= */
+/* ========= Flash Panel + Flash Modal ========= */
 
 function renderFlash() {
-  const items = [...FLASH_ITEMS].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+  const items = [...FLASH_ITEMS].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   flashListEl.innerHTML = items.map(f => `
     <div class="flash-item" data-flash-id="${f.id}" role="button" tabindex="0">
       <p class="flash-text">${escapeHTML(f.text_short)}</p>
       <div class="flash-meta">
         <span>${formatTime(f.timestamp)}</span>
-        <span>${categoryBadge(f.category)}</span>
+        <span>${escapeHTML(categoryBadge(f.category))}</span>
       </div>
     </div>
   `).join("");
@@ -289,11 +312,10 @@ function renderFlash() {
 
 function openFlashPanel() {
   isFlashOpen = true;
+  renderFlash();
   flashPanelEl.classList.add("open");
   flashPanelEl.setAttribute("aria-hidden", "false");
   overlayEl.hidden = false;
-  overlayEl.style.zIndex = 15;
-  document.body.style.overflow = "hidden";
 }
 
 function closeFlashPanel() {
@@ -304,12 +326,13 @@ function closeFlashPanel() {
 }
 
 function openFlashModal(flash) {
-  flashModalTitle.textContent = "Flash";
-  flashModalMeta.textContent = `${formatDateTime(flash.timestamp)} · ${categoryBadge(flash.category)} ${flash.primary_country ? "· " + flash.primary_country : ""}`;
+  flashModalMeta.textContent =
+    `${formatDateTime(flash.timestamp)} · ${categoryBadge(flash.category)}${flash.primary_country ? " · " + flash.primary_country : ""}`;
+
   flashModalText.textContent = flash.text_full || flash.text_short;
 
   flashModalSources.innerHTML = "";
-  for (const s of flash.sources || []) {
+  for (const s of (flash.sources || []).slice(0, 6)) {
     const div = document.createElement("div");
     div.className = "source";
     div.textContent = s;
@@ -334,14 +357,34 @@ function openModal(modalEl) {
   modalEl.classList.add("open");
   modalEl.setAttribute("aria-hidden", "false");
 }
+
 function closeModal(modalEl) {
   modalEl.classList.remove("open");
   modalEl.setAttribute("aria-hidden", "true");
 }
 
-/* =========================
-   Article
-   ========================= */
+/* ========= Article ========= */
+
+function renderUpdates(updates = []) {
+  if (!updates.length) return `<p class="small">Aucune mise à jour enregistrée.</p>`;
+
+  const sorted = [...updates].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  return sorted.map(u => `
+    <div class="card">
+      <div class="card-top">
+        <div class="badges">
+          <span class="badge">${formatDateTime(u.timestamp)}</span>
+          ${u.is_bump ? `<span class="badge accent">MAJ</span>` : `<span class="badge">mineur</span>`}
+        </div>
+      </div>
+      <p class="card-summary">${escapeHTML(u.text)}</p>
+      <div class="card-meta">
+        <span>${escapeHTML((u.sources || []).slice(0, 3).join(", "))}</span>
+        <span></span>
+      </div>
+    </div>
+  `).join("");
+}
 
 function openArticleById(id) {
   const s = SUBJECTS.find(x => x.id === id);
@@ -369,7 +412,7 @@ function openArticleById(id) {
     ` : ""}
 
     <h2>Sources</h2>
-    <p class="small">${s.sources_count} sources (MVP mock).</p>
+    <p class="small">${Number(s.sources_count || 0)} sources (MVP mock).</p>
 
     <h2>Mises à jour</h2>
     ${renderUpdates(s.updates)}
@@ -378,39 +421,18 @@ function openArticleById(id) {
   openModal(articleModal);
 }
 
-function renderUpdates(updates = []) {
-  if (!updates.length) return `<p class="small">Aucune mise à jour enregistrée.</p>`;
-  const sorted = [...updates].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-  return sorted.map(u => `
-    <div class="card">
-      <div class="card-top">
-        <div class="badges">
-          <span class="badge">${formatDateTime(u.timestamp)}</span>
-          ${u.is_bump ? `<span class="badge accent">BUMP</span>` : `<span class="badge">minor</span>`}
-        </div>
-      </div>
-      <p class="card-summary">${escapeHTML(u.text)}</p>
-      <div class="card-meta">
-        <span>${(u.sources || []).slice(0,3).join(", ")}</span>
-        <span></span>
-      </div>
-    </div>
-  `).join("");
-}
-
-/* =========================
-   Recherche
-   ========================= */
+/* ========= Search ========= */
 
 function openSearch() {
   openModal(searchModal);
-  setTimeout(() => searchInput.focus(), 50);
-  renderSearchResults([]);
+  setTimeout(() => searchInput.focus(), 40);
+  runSearch();
 }
 
 function closeSearch() {
   closeModal(searchModal);
   searchInput.value = "";
+  runSearch();
 }
 
 function runSearch() {
@@ -423,84 +445,70 @@ function runSearch() {
     return Date.now() - Number(period) * 24 * 60 * 60 * 1000;
   })();
 
-  let list = SUBJECTS;
+  let list = SUBJECTS.slice();
 
   if (cat !== "all") list = list.filter(s => s.category === cat);
   if (cutoff) list = list.filter(s => new Date(s.last_updated_at).getTime() >= cutoff);
 
   if (q) {
-    list = list.filter(s => (
-      s.title.toLowerCase().includes(q) ||
+    list = list.filter(s =>
+      (s.title || "").toLowerCase().includes(q) ||
       (s.summary || "").toLowerCase().includes(q)
-    ));
+    );
   }
 
-  // tri récent
-  list.sort((a,b) => new Date(b.last_updated_at) - new Date(a.last_updated_at));
-  renderSearchResults(list);
-}
+  list.sort((a, b) => new Date(b.last_updated_at) - new Date(a.last_updated_at));
 
-function renderSearchResults(list) {
   if (!list.length) {
     searchResults.innerHTML = `<div class="card"><p class="card-summary">Aucun résultat.</p></div>`;
     return;
   }
+
   searchResults.innerHTML = list.map(subjectCardHTML).join("");
 }
 
-/* =========================
-   Bandeau "N nouvelles MAJ"
-   ========================= */
+/* ========= Update banner ========= */
 
 function showUpdateBanner() {
-  const newCount = pendingSubjects.length;
-  if (newCount <= 0) return;
-  updateBannerText.textContent = `${newCount} nouvelles mises à jour`;
+  const count = pendingSubjects.length;
+  if (count <= 0) return;
+  updateBannerText.textContent = `${count} nouvelles mises à jour`;
   updateBanner.hidden = false;
 }
+
 function hideUpdateBanner() {
   updateBanner.hidden = true;
 }
 
 function applyPendingUpdates() {
   if (!pendingSubjects.length) return;
-  prependOrUpdateSubjects(pendingSubjects);
+  upsertSubjects(pendingSubjects);
   pendingSubjects = [];
   hideUpdateBanner();
+  renderFeed();
   scrollFeedToTop();
 }
 
-/* =========================
-   Navigation tabs + bottom nav
-   ========================= */
+/* ========= Navigation ========= */
 
 function setActiveTab(tab) {
   currentTab = tab;
 
-  for (const t of tabs) t.classList.toggle("is-active", t.dataset.tab === tab);
+  tabs.forEach(t => t.classList.toggle("is-active", t.dataset.tab === tab));
 
-  // bottom nav : on n’active que les 5 boutons existants (home/world/local/search/settings)
-  for (const b of navBtns) b.classList.remove("is-active");
-  const navKey = tab === "home" ? "home" : (["world","local"].includes(tab) ? tab : null);
-  if (navKey) {
-    const btn = navBtns.find(x => x.dataset.nav === navKey);
-    if (btn) btn.classList.add("is-active");
-  } else {
-    // si tab = economy/tech/sport/entertainment, on laisse Accueil actif
-    const btn = navBtns.find(x => x.dataset.nav === "home");
-    if (btn) btn.classList.add("is-active");
-  }
+  // bottom nav: active home/world/local (les autres laissent home)
+  navBtns.forEach(b => b.classList.remove("is-active"));
+  const navKey = tab === "home" ? "home" : (["world", "local"].includes(tab) ? tab : "home");
+  const btn = navBtns.find(x => x.dataset.nav === navKey);
+  if (btn) btn.classList.add("is-active");
 
-  renderFeed();
-  // reset banner
   pendingSubjects = [];
   hideUpdateBanner();
+  renderFeed();
   scrollFeedToTop();
 }
 
-/* =========================
-   Scroll handling
-   ========================= */
+/* ========= Scroll behavior ========= */
 
 function scrollFeedToTop() {
   feedEl.scrollTo({ top: 0, behavior: "smooth" });
@@ -509,100 +517,84 @@ function scrollFeedToTop() {
 feedEl.addEventListener("scroll", () => {
   const st = feedEl.scrollTop;
 
-  // bouton remonter
+  // bouton haut
   backToTopBtn.hidden = !(st > 600);
 
-  // si on remonte en haut, on applique pending sans action
+  // si on remonte en haut, on applique pending automatiquement
   if (st < 20 && pendingSubjects.length) {
-    prependOrUpdateSubjects(pendingSubjects);
-    pendingSubjects = [];
-    hideUpdateBanner();
+    applyPendingUpdates();
   }
 });
 
 backToTopBtn.addEventListener("click", scrollFeedToTop);
 
-/* =========================
-   Event listeners
-   ========================= */
+/* ========= Events ========= */
 
-openFlashBtn.addEventListener("click", () => {
-  renderFlash();
-  openFlashPanel();
-});
+// Flash
+openFlashBtn.addEventListener("click", openFlashPanel);
 closeFlashBtn.addEventListener("click", closeFlashPanel);
+overlayEl.addEventListener("click", () => { if (isFlashOpen) closeFlashPanel(); });
 
-overlayEl.addEventListener("click", () => {
-  if (isFlashOpen) closeFlashPanel();
-});
-
+// Flash modal
 flashModalCloseBtn.addEventListener("click", () => closeModal(flashModal));
-flashModal.addEventListener("click", (e) => {
-  if (e.target === flashModal) closeModal(flashModal);
-});
+flashModal.addEventListener("click", (e) => { if (e.target === flashModal) closeModal(flashModal); });
 
-searchCloseBtn.addEventListener("click", closeSearch);
+// Search
 openSearchBtn.addEventListener("click", openSearch);
-searchModal.addEventListener("click", (e) => {
-  if (e.target === searchModal) closeSearch();
-});
+searchCloseBtn.addEventListener("click", closeSearch);
+searchModal.addEventListener("click", (e) => { if (e.target === searchModal) closeSearch(); });
 
+searchInput.addEventListener("input", runSearch);
+searchCategorySelect.addEventListener("change", runSearch);
+searchPeriodSelect.addEventListener("change", runSearch);
+
+// Article
 articleBackBtn.addEventListener("click", () => closeModal(articleModal));
-articleModal.addEventListener("click", (e) => {
-  if (e.target === articleModal) closeModal(articleModal);
-});
+articleModal.addEventListener("click", (e) => { if (e.target === articleModal) closeModal(articleModal); });
 
+// Update banner
 applyUpdatesBtn.addEventListener("click", applyPendingUpdates);
 
-// Tabs click
+// Tabs
 tabs.forEach(t => t.addEventListener("click", () => setActiveTab(t.dataset.tab)));
 
-// Bottom nav click
+// Bottom nav
 navBtns.forEach(b => b.addEventListener("click", () => {
   const key = b.dataset.nav;
   if (key === "search") return openSearch();
-  if (key === "settings") {
-    // MVP: settings non implémenté, on ouvre juste la recherche pour l’instant
-    return openSearch();
-  }
+  if (key === "settings") return openSearch(); // MVP: settings pas encore
   if (key === "home") return setActiveTab("home");
   if (key === "world") return setActiveTab("world");
   if (key === "local") return setActiveTab("local");
 }));
 
-// Click cards → article
+// Click cards / flash items
 document.addEventListener("click", (e) => {
   const card = e.target.closest?.(".card");
-  if (card && card.dataset.subjectId) {
+  if (card?.dataset?.subjectId) {
     openArticleById(card.dataset.subjectId);
+    return;
   }
 
   const flashItem = e.target.closest?.(".flash-item");
-  if (flashItem && flashItem.dataset.flashId) {
+  if (flashItem?.dataset?.flashId) {
     const f = FLASH_ITEMS.find(x => x.id === flashItem.dataset.flashId);
     if (f) openFlashModal(f);
   }
 });
 
-// Search input events
-searchInput.addEventListener("input", runSearch);
-searchCategorySelect.addEventListener("change", runSearch);
-searchPeriodSelect.addEventListener("change", runSearch);
-
-/* =========================
-   Simulation de nouvelles MAJ (MVP)
-   =========================
-   Toutes les 25s : simule une MAJ bump d’un sujet
+/* ========= Simulation MAJ (MVP) =========
+   - toutes les 25s : simule une MAJ "bump" sur un sujet visible
+   - si l’utilisateur est scrollé => pending + bandeau
 */
 setInterval(() => {
-  // Ne pas injecter si l’utilisateur est en recherche ou article
   if (searchModal.classList.contains("open") || articleModal.classList.contains("open")) return;
 
-  // Simule une update bump sur un sujet random visible
   const visible = getVisibleSubjectsForTab(currentTab);
   if (!visible.length) return;
 
   const pick = visible[Math.floor(Math.random() * visible.length)];
+
   const updated = {
     ...pick,
     last_updated_at: new Date().toISOString(),
@@ -612,44 +604,22 @@ setInterval(() => {
     ],
   };
 
-  lastFetchAt = now();
-
   const isAtTop = feedEl.scrollTop < 20;
+
   if (isAtTop) {
-    prependOrUpdateSubjects([updated]);
+    upsertSubjects([updated]);
+    renderFeed();
   } else {
-    // en pending
     pendingSubjects = mergeDedupById(pendingSubjects, [updated]);
     showUpdateBanner();
   }
 }, 25_000);
 
-/* =========================
-   Service worker register
-   ========================= */
+/* ========= Service worker ========= */
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./service-worker.js").catch(() => {});
   });
-}
-
-/* =========================
-   Helpers
-   ========================= */
-
-function mergeDedupById(existing, incoming) {
-  const map = new Map(existing.map(x => [x.id, x]));
-  for (const it of incoming) map.set(it.id, it);
-  return Array.from(map.values());
-}
-
-function escapeHTML(str) {
-  return String(str ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 /* Init */
