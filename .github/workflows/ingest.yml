@@ -1,7 +1,5 @@
 name: Ingest News (Gemini)
 
-run-name: Ingest News (Gemini)
-
 on:
   workflow_dispatch:
   schedule:
@@ -23,13 +21,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # "no cache" + évite l'erreur lockfile
       - name: Setup Node (no cache)
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Generate data
         env:
@@ -38,9 +37,27 @@ jobs:
         run: node scripts/ingest.mjs
 
       - name: Commit & push data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euxo pipefail
+
           git config user.name "flashinfo-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add data/*.json
-          git diff --cached --quiet || git commit -m "chore: update feeds"
-          git push
+
+          git status
+          git branch --show-current
+
+          # Ajouter uniquement ce qu'on génère
+          git add data/*.json || true
+
+          # Si aucun changement -> on sort proprement
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: update feeds"
+
+          # Push explicite vers main
+          git push origin HEAD:main
