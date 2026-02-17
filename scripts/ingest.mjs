@@ -2,14 +2,14 @@
 // Node 20+ (fetch natif)
 //
 // Objectif :
-// - Récupérer des flux RSS/Atom via rss-parser
-// - Pour chaque flux : prendre quelques items récents
-// - Appeler Gemini pour synthétiser en 1 "flash"
+// - Récupérer des flux RSS
+// - Prendre quelques items récents
+// - Appeler Gemini pour synthétiser en 1 flash par flux
 // - Écrire data/home.json + data/{categorie}.json
 //
-// Env attendues :
+// Env :
 // - GEMINI_API_KEY (obligatoire)
-// - GEMINI_API_VERSION (optionnel, défaut "v1")
+// - GEMINI_API_VERSION (optionnel, défaut "v1")  // "v1" recommandé
 // - GEMINI_MODEL (optionnel, force un modèle précis)
 
 import fs from "node:fs/promises";
@@ -22,42 +22,43 @@ console.log(`[ingest] start ${startedAt}`);
 
 const DATA_DIR = path.resolve("data");
 
+// Catégories (alignées avec ton app.js: tech/economie/sport/monde)
 const FEEDS = [
   {
     id: "bbc-world",
-    name: "BBC",
+    name: "BBC (monde)",
     category: "monde",
     country: "GB",
-    url: "https://feeds.bbci.co.uk/news/world/rss.xml"
+    url: "http://feeds.bbci.co.uk/news/world/rss.xml",
   },
   {
     id: "france24-world",
-    name: "France24",
+    name: "France24 (monde)",
     category: "monde",
     country: "FR",
-    url: "https://www.france24.com/fr/rss"
+    url: "https://www.france24.com/fr/rss",
   },
   {
     id: "theverge-tech",
-    name: "The Verge",
+    name: "The Verge (tech)",
     category: "tech",
     country: "US",
-    url: "https://www.theverge.com/rss/index.xml"
+    url: "https://www.theverge.com/rss/index.xml",
   },
   {
     id: "lemonde-eco",
-    name: "Le Monde",
+    name: "Le Monde (economie)",
     category: "economie",
     country: "FR",
-    url: "https://www.lemonde.fr/economie/rss_full.xml"
+    url: "https://www.lemonde.fr/economie/rss_full.xml",
   },
   {
     id: "lemonde-sport",
-    name: "Le Monde",
+    name: "Le Monde (sport)",
     category: "sport",
     country: "FR",
-    url: "https://www.lemonde.fr/sport/rss_full.xml"
-  }
+    url: "https://www.lemonde.fr/sport/rss_full.xml",
+  },
 ];
 
 // ---------------------------
@@ -88,86 +89,74 @@ function toIsoDateMaybe(d) {
   return new Date(t).toISOString();
 }
 
-function pickImageFromRssParserItem(item) {
-  // rss-parser normalise pas mal, mais les images restent très variables
-  // 1) enclosure.url (souvent les podcasts, parfois des images)
-  if (item?.enclosure?.url && typeof item.enclosure.url === "string") {
-    const u = item.enclosure.url;
-    if (u.startsWith("http")) return u;
-  }
+function pickImageFromItem(item) {
+  // rss-parser normalize souvent :
+  // - enclosure.url
+  // - itunes:image
+  // - media:content (via item["media:content"] selon feed)
+  const enc = item.enclosure?.url;
+  if (enc) return enc;
 
-  // 2) media:content / media:thumbnail via custom fields (si présents)
-  //   -> rss-parser peut exposer item["media:content"] / item["media:thumbnail"]
-  const mediaContent = item?.["media:content"];
-  const mediaThumb = item?.["media:thumbnail"];
-  for (const media of [mediaContent, mediaThumb]) {
-    if (!media) continue;
-    const arr = Array.isArray(media) ? media : [media];
-    for (const m of arr) {
-      const url = m?.url || m?.$?.url || m?.["@_url"];
-      if (url && typeof url === "string" && url.startsWith("http")) return url;
+  const itunesImg = item["itunes:image"]?.href || item["itunes:image"]?.url;
+  if (itunesImg) return itunesImg;
+
+  const media = item["media:content"] || item["media:thumbnail"];
+  if (media) {
+    if (Array.isArray(media)) {
+      for (const m of media) {
+        const u = m?.url || m?.href;
+        if (u) return u;
+      }
+    } else {
+      const u = media?.url || media?.href;
+      if (u) return u;
     }
   }
 
-  // 3) content / content:encoded / summary avec <img>
-  const html =
-    item?.["content:encoded"] ||
-    item?.content ||
-    item?.summary ||
-    item?.contentSnippet ||
-    "";
+  // Dernier recours : scrapper un <img> dans contentSnippet/content
+  const html = item.content || item["content:encoded"] || "";
   const m = String(html).match(/<img[^>]+src=["']([^"']+)["']/i);
-  if (m?.[1] && m[1].startsWith("http")) return m[1];
+  if (m?.[1]) return m[1];
 
   return null;
 }
 
 // ---------------------------
-// RSS fetch & parse (rss-parser)
+// RSS parsing
 // ---------------------------
 
+const parser = new Parser({
+  headers: {
+    "User-Agent": "flash-info-bot/1.0 (+github actions)",
+    Accept: "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7",
+  },
+  timeout: 20000,
+});
+
 async function loadFeed(feed) {
-  const parser = new Parser({
-    headers: {
-      "User-Agent": "flash-info-bot/1.0 (+github actions)"
-    },
-    timeout: 20_000
-  });
+  const res = await parser.parseURL(feed.url);
 
-  const parsed = await parser.parseURL(feed.url);
-
-  const itemsRaw = Array.isArray(parsed.items) ? parsed.items : [];
-  const items = itemsRaw
+  const items = (res.items || [])
     .map((it) => {
-      const title = String(it.title || "").trim();
-      const url = String(it.link || "").trim();
+      const title = (it.title || "").trim();
+      const url = (it.link || "").trim();
       const publishedAt =
         toIsoDateMaybe(it.isoDate) ||
         toIsoDateMaybe(it.pubDate) ||
-        toIsoDateMaybe(it.date);
+        toIsoDateMaybe(it.published) ||
+        null;
 
-      const excerpt = stripHtml(
-        it.contentSnippet ||
-          it.summary ||
-          it.content ||
-          it["content:encoded"] ||
-          ""
-      );
+      const excerpt = stripHtml(it.contentSnippet || it.summary || it.content || "");
+      const image = pickImageFromItem(it);
 
-      const image = pickImageFromRssParserItem(it);
-
-      if (!title || !url) return null;
       return { title, url, publishedAt, excerpt, image };
     })
-    .filter(Boolean);
-
-  items.sort(
-    (a, b) => (Date.parse(b.publishedAt || "") || 0) - (Date.parse(a.publishedAt || "") || 0)
-  );
+    .filter((x) => x.title && x.url)
+    .sort((a, b) => (Date.parse(b.publishedAt || "") || 0) - (Date.parse(a.publishedAt || "") || 0));
 
   return {
-    feedTitle: parsed.title || feed.name,
-    items
+    feedTitle: (res.title || feed.name || "").trim(),
+    items,
   };
 }
 
@@ -176,12 +165,12 @@ async function loadFeed(feed) {
 // ---------------------------
 
 function geminiBase(version) {
-  // version attendu: "v1" ou "v1beta"
   return `https://generativelanguage.googleapis.com/${version}`;
 }
 
 async function geminiFetchJson(url, opts, { retries = 3 } = {}) {
   let attempt = 0;
+
   while (true) {
     attempt++;
     const res = await fetch(url, opts);
@@ -191,9 +180,11 @@ async function geminiFetchJson(url, opts, { retries = 3 } = {}) {
       return JSON.parse(text);
     }
 
-    if (res.status === 503 && attempt < retries) {
-      console.warn(`[gemini] 503 unavailable, retry ${attempt}/${retries}`);
-      await sleep(3000);
+    // Retry seulement sur erreurs “transitoires”
+    if ((res.status === 503 || res.status === 429) && attempt < retries) {
+      const wait = 1500 * attempt;
+      console.warn(`[gemini] ${res.status} retry ${attempt}/${retries} in ${wait}ms`);
+      await sleep(wait);
       continue;
     }
 
@@ -231,6 +222,7 @@ async function pickGeminiModel(apiKey, version = "v1") {
     return forced;
   }
 
+  // 1) Tentative ListModels (peut être down)
   try {
     const models = await listModels(apiKey, version);
     const usable = models
@@ -243,18 +235,19 @@ async function pickGeminiModel(apiKey, version = "v1") {
       return usable[0];
     }
   } catch (e) {
-    console.warn(`[gemini] listModels failed, fallback to known models. reason: ${e.message}`);
+    console.warn(`[gemini] ListModels failed, will fallback. reason: ${e.message}`);
   }
 
-  // fallback “probables” : on testera au call
+  // 2) Fallback “probables”
   const fallback = [
     "models/gemini-1.5-flash-latest",
     "models/gemini-1.5-pro-latest",
     "models/gemini-1.5-flash",
     "models/gemini-1.5-pro",
     "models/gemini-2.0-flash",
-    "models/gemini-2.0-pro"
+    "models/gemini-2.0-pro",
   ];
+
   console.log(`[gemini] fallback model candidate: ${fallback[0]}`);
   return fallback[0];
 }
@@ -264,7 +257,10 @@ async function generateContent(apiKey, modelName, prompt, version = "v1") {
 
   const body = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 450 }
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: 450,
+    },
   };
 
   const data = await geminiFetchJson(
@@ -272,24 +268,25 @@ async function generateContent(apiKey, modelName, prompt, version = "v1") {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     },
     { retries: 3 }
   );
 
-  return (
-    data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("")?.trim() || ""
-  );
+  const text =
+    data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("")?.trim() || "";
+
+  return text;
 }
 
 function safeJsonExtract(text) {
-  const firstBrace = text.indexOf("{");
-  const lastBrace = text.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    const slice = text.slice(firstBrace, lastBrace + 1);
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first !== -1 && last !== -1 && last > first) {
+    const slice = text.slice(first, last + 1);
     try {
       return JSON.parse(slice);
-    } catch (_) {
+    } catch {
       return null;
     }
   }
@@ -307,7 +304,7 @@ function buildPrompt({ category, feedName, country, items }) {
 
   return `
 Tu es un rédacteur de flash info.
-Tu dois produire UN seul "flash" synthétique, clair, court et utile.
+Tu dois produire UN seul flash synthétique, clair, court et utile.
 
 Contexte:
 - Catégorie: ${category}
@@ -315,26 +312,26 @@ Contexte:
 - Pays: ${country}
 
 Contraintes:
-- Le titre doit être court et percutant (max ~90 caractères).
-- Le résumé doit faire 2 à 3 phrases (pas plus).
-- Style neutre, pas sensationnaliste.
-- Ne pas inventer des faits.
-- Si les items semblent parler d'un même sujet, fusionne-les. Sinon, choisis le sujet dominant.
+- Titre court (max ~90 caractères)
+- Résumé 2 à 3 phrases (pas plus)
+- Style neutre, pas sensationnaliste
+- Ne pas inventer de faits
+- Si plusieurs items parlent du même sujet, fusionne-les ; sinon choisis le sujet dominant
 
-Tu dois répondre STRICTEMENT en JSON, avec exactement ces clés :
+Réponds STRICTEMENT en JSON avec EXACTEMENT ces clés :
 {
   "title": "...",
   "summary": "..."
 }
 
-Voici les items (titres + extraits + liens):
+Items (titres + extraits + liens):
 ${sources}
 `.trim();
 }
 
-async function synthesizeOne({ apiKey, version, modelName, feed }) {
+async function synthesizeOne({ apiKey, version, baseModel, feed }) {
   const { feedTitle, items } = await loadFeed(feed);
-  console.log(`[rss] ok ${feed.name} (${feed.category})`);
+  console.log(`[rss] ok ${feed.name}`);
 
   if (!items.length) {
     return {
@@ -347,7 +344,8 @@ async function synthesizeOne({ apiKey, version, modelName, feed }) {
       summary: "Le flux n'a pas renvoyé d'articles exploitables pour le moment.",
       url: feed.url,
       image: null,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      model: null,
     };
   }
 
@@ -355,36 +353,48 @@ async function synthesizeOne({ apiKey, version, modelName, feed }) {
     category: feed.category,
     feedName: feedTitle,
     country: feed.country,
-    items
+    items,
   });
 
-  const fallbackModels = [
-    modelName,
+  // Chaîne de fallback modèles
+  const candidates = [
+    baseModel,
     "models/gemini-1.5-flash-latest",
     "models/gemini-1.5-pro-latest",
     "models/gemini-1.5-flash",
-    "models/gemini-1.5-pro"
+    "models/gemini-1.5-pro",
   ].filter((v, i, a) => v && a.indexOf(v) === i);
 
+  let usedModel = candidates[0];
   let text = "";
-  let usedModel = fallbackModels[0];
 
-  for (const m of fallbackModels) {
+  for (const m of candidates) {
     try {
       usedModel = m;
       text = await generateContent(apiKey, m, prompt, version);
       if (text) break;
     } catch (e) {
       const msg = String(e.message || e);
-      if (msg.includes("NOT_FOUND") || msg.includes("not found") || msg.includes("not supported")) {
-        console.warn(`[gemini] model failed (${m}), trying next. reason: ${msg.slice(0, 180)}`);
+
+      // Modèle introuvable / méthode non supportée => essayer suivant
+      if (
+        msg.includes("NOT_FOUND") ||
+        msg.includes("not found") ||
+        msg.includes("not supported") ||
+        msg.includes("is not found")
+      ) {
+        console.warn(`[gemini] model failed (${m}), trying next…`);
         continue;
       }
+
+      // Autre erreur => on remonte
       throw e;
     }
   }
 
-  if (!text) throw new Error("[gemini] empty response after trying fallback models");
+  if (!text) {
+    throw new Error("[gemini] empty response after trying model candidates");
+  }
 
   const json = safeJsonExtract(text);
   const title = (json?.title && String(json.title).trim()) || items[0].title || `${feedTitle}: mise à jour`;
@@ -394,7 +404,7 @@ async function synthesizeOne({ apiKey, version, modelName, feed }) {
   const topUrl = items[0].url;
 
   return {
-    id: stableId(feed.id, items[0].url),
+    id: stableId(feed.id, topUrl),
     category: feed.category,
     country: feed.country,
     source: feed.name,
@@ -404,7 +414,7 @@ async function synthesizeOne({ apiKey, version, modelName, feed }) {
     url: topUrl,
     image: topImage,
     updatedAt: new Date().toISOString(),
-    model: usedModel
+    model: usedModel,
   };
 }
 
@@ -444,15 +454,16 @@ async function main() {
 
   await ensureDir(DATA_DIR);
 
-  const modelName = await pickGeminiModel(apiKey, version);
+  // On choisit un modèle “base” une fois
+  const baseModel = await pickGeminiModel(apiKey, version);
 
   const results = [];
   for (const feed of FEEDS) {
     try {
-      const card = await synthesizeOne({ apiKey, version, modelName, feed });
+      const card = await synthesizeOne({ apiKey, version, baseModel, feed });
       results.push(card);
     } catch (e) {
-      console.error(`[feed] failed ${feed.name} (${feed.category}): ${e.message}`);
+      console.error(`[feed] failed ${feed.name}: ${e.message}`);
       results.push({
         id: stableId(feed.id, "error"),
         category: feed.category,
@@ -464,7 +475,8 @@ async function main() {
         url: feed.url,
         image: null,
         updatedAt: new Date().toISOString(),
-        error: String(e.message || e)
+        error: String(e.message || e),
+        model: null,
       });
     }
   }
@@ -477,7 +489,7 @@ async function main() {
   await writeJson(path.join(DATA_DIR, "home.json"), {
     generatedAt: new Date().toISOString(),
     count: results.length,
-    items: results
+    items: results,
   });
 
   const byCat = groupBy(results, "category");
@@ -486,7 +498,7 @@ async function main() {
       generatedAt: new Date().toISOString(),
       category: cat,
       count: items.length,
-      items
+      items,
     });
   }
 
