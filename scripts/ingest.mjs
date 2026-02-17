@@ -1,5 +1,17 @@
 // scripts/ingest.mjs
 // Node 20+ (fetch natif)
+// Dépendances: rss-parser
+//
+// Objectif :
+// - Récupérer des flux RSS/Atom
+// - Prendre des items récents
+// - Appeler Gemini pour synthétiser 1 "flash" par feed
+// - Écrire data/home.json + data/{categorie}.json
+//
+// Env attendues :
+// - GEMINI_API_KEY (obligatoire)
+// - GEMINI_API_VERSION (optionnel, défaut "v1")
+// - GEMINI_MODEL (optionnel, force un modèle précis)
 
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -11,12 +23,55 @@ console.log(`[ingest] start ${startedAt}`);
 
 const DATA_DIR = path.resolve("data");
 
+// rss-parser instance
+const parser = new Parser({
+  timeout: 15000,
+  // custom fields sometimes useful, keep tolerant:
+  customFields: {
+    item: [
+      ["media:content", "mediaContent"],
+      ["media:thumbnail", "mediaThumbnail"],
+      ["content:encoded", "contentEncoded"],
+    ],
+  },
+});
+
 const FEEDS = [
-  { id: "bbc-world", name: "BBC", category: "monde", country: "GB", url: "http://feeds.bbci.co.uk/news/world/rss.xml" },
-  { id: "france24-world", name: "France24", category: "monde", country: "FR", url: "https://www.france24.com/fr/rss" },
-  { id: "theverge-tech", name: "The Verge", category: "tech", country: "US", url: "https://www.theverge.com/rss/index.xml" },
-  { id: "lemonde-eco", name: "Le Monde", category: "economie", country: "FR", url: "https://www.lemonde.fr/economie/rss_full.xml" },
-  { id: "lemonde-sport", name: "Le Monde", category: "sport", country: "FR", url: "https://www.lemonde.fr/sport/rss_full.xml" },
+  {
+    id: "bbc-world",
+    name: "BBC",
+    category: "monde",
+    country: "GB",
+    url: "http://feeds.bbci.co.uk/news/world/rss.xml",
+  },
+  {
+    id: "france24-world",
+    name: "France24",
+    category: "monde",
+    country: "FR",
+    url: "https://www.france24.com/fr/rss",
+  },
+  {
+    id: "theverge-tech",
+    name: "The Verge",
+    category: "tech",
+    country: "US",
+    url: "https://www.theverge.com/rss/index.xml",
+  },
+  {
+    id: "lemonde-eco",
+    name: "Le Monde",
+    category: "economie",
+    country: "FR",
+    url: "https://www.lemonde.fr/economie/rss_full.xml",
+  },
+  {
+    id: "lemonde-sport",
+    name: "Le Monde",
+    category: "sport",
+    country: "FR",
+    url: "https://www.lemonde.fr/sport/rss_full.xml",
+  },
 ];
 
 // ---------------------------
@@ -28,7 +83,11 @@ function sleep(ms) {
 }
 
 function stableId(...parts) {
-  return crypto.createHash("sha1").update(parts.join("|")).digest("hex").slice(0, 12);
+  return crypto
+    .createHash("sha1")
+    .update(parts.join("|"))
+    .digest("hex")
+    .slice(0, 12);
 }
 
 function stripHtml(input = "") {
@@ -48,54 +107,73 @@ function toIsoDateMaybe(d) {
 }
 
 function pickImageFromItem(item) {
-  const enc = item?.enclosure?.url;
-  if (enc && typeof enc === "string") return enc;
+  // rss-parser often provides enclosure.url
+  if (item?.enclosure?.url) return item.enclosure.url;
 
-  const itImg = item?.itunes?.image;
-  if (itImg && typeof itImg === "string") return itImg;
-
-  const media = item?.["media:content"];
-  if (media) {
-    const arr = Array.isArray(media) ? media : [media];
-    for (const m of arr) {
-      const u = m?.url || m?.["$"]?.url || m?.["$"]?.href;
-      if (u && typeof u === "string") return u;
-    }
+  // media:content / media:thumbnail (varies)
+  // Sometimes rss-parser turns them into objects or arrays
+  const mc = item?.mediaContent || item?.mediaThumbnail || item?.["media:content"] || item?.["media:thumbnail"];
+  const cand = Array.isArray(mc) ? mc : (mc ? [mc] : []);
+  for (const c of cand) {
+    const url = c?.url || c?.["@_url"] || c?.$?.url;
+    if (typeof url === "string" && url.startsWith("http")) return url;
   }
 
-  const html = item?.content || item?.["content:encoded"] || item?.summary || item?.contentSnippet || "";
+  // try to extract from content
+  const html = item?.contentEncoded || item?.content || item?.summary || "";
   const m = String(html).match(/<img[^>]+src=["']([^"']+)["']/i);
   if (m?.[1]) return m[1];
 
   return null;
 }
 
-// ---------------------------
-// RSS (rss-parser)
-// ---------------------------
+function safeJsonExtract(text) {
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const slice = text.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(slice);
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
 
-const parser = new Parser({
-  timeout: 20_000,
-  headers: {
-    "User-Agent": "flash-info-bot/1.0 (+github actions)",
-    Accept: "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7",
-  },
-});
+// ---------------------------
+// RSS load
+// ---------------------------
 
 async function loadFeed(feed) {
-  const f = await parser.parseURL(feed.url);
-  const items = (f.items || [])
-    .map((it) => ({
-      title: String(it.title || "").trim(),
-      url: String(it.link || "").trim(),
-      publishedAt: toIsoDateMaybe(it.isoDate || it.pubDate),
-      excerpt: stripHtml(it.contentSnippet || it.content || it.summary || ""),
-      image: pickImageFromItem(it),
-    }))
-    .filter((x) => x.title && x.url)
-    .sort((a, b) => (Date.parse(b.publishedAt || "") || 0) - (Date.parse(a.publishedAt || "") || 0));
+  const parsed = await parser.parseURL(feed.url);
+  const items = Array.isArray(parsed?.items) ? parsed.items : [];
 
-  return { feedTitle: String(f.title || feed.name), items };
+  const normalized = items.map((it) => {
+    const title = it?.title?.trim?.() || "";
+    const url = it?.link || "";
+    const publishedAt =
+      toIsoDateMaybe(it?.isoDate) ||
+      toIsoDateMaybe(it?.pubDate) ||
+      toIsoDateMaybe(it?.date) ||
+      null;
+
+    const excerpt = stripHtml(it?.contentSnippet || it?.summary || it?.content || it?.contentEncoded || "");
+    const image = pickImageFromItem(it);
+
+    return { title, url, publishedAt, excerpt, image };
+  })
+  .filter((x) => x.title && x.url);
+
+  // sort by date desc
+  normalized.sort(
+    (a, b) => (Date.parse(b.publishedAt || "") || 0) - (Date.parse(a.publishedAt || "") || 0)
+  );
+
+  return {
+    feedTitle: parsed?.title || feed.name,
+    items: normalized,
+  };
 }
 
 // ---------------------------
@@ -115,9 +193,10 @@ async function geminiFetchJson(url, opts, { retries = 3 } = {}) {
 
     if (res.ok) return JSON.parse(text);
 
+    // Retry only on 503
     if (res.status === 503 && attempt < retries) {
       console.warn(`[gemini] 503 unavailable, retry ${attempt}/${retries}`);
-      await sleep(3000);
+      await sleep(2500);
       continue;
     }
 
@@ -167,11 +246,12 @@ async function pickGeminiModel(apiKey, version = "v1") {
       return usable[0];
     }
   } catch (e) {
-    console.warn(`[gemini] listModels failed, fallback. reason: ${e.message}`);
+    console.warn(`[gemini] listModels failed, fallback to known models. reason: ${e.message}`);
   }
 
   const fallback = [
     "models/gemini-2.5-flash",
+    "models/gemini-2.5-pro",
     "models/gemini-2.0-flash",
     "models/gemini-1.5-flash-latest",
     "models/gemini-1.5-pro-latest",
@@ -183,65 +263,70 @@ async function pickGeminiModel(apiKey, version = "v1") {
 
 async function generateContent(apiKey, modelName, prompt, version = "v1") {
   const url = `${geminiBase(version)}/${modelName}:generateContent?key=${apiKey}`;
+
   const body = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 450 },
+    generationConfig: {
+      temperature: 0.35,
+      maxOutputTokens: 420,
+    },
   };
 
   const data = await geminiFetchJson(
     url,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
     { retries: 3 }
   );
 
-  return (
-    data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("")?.trim() || ""
-  );
-}
+  const text =
+    data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("")?.trim() || "";
 
-function safeJsonExtract(text) {
-  const firstBrace = text.indexOf("{");
-  const lastBrace = text.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    const slice = text.slice(firstBrace, lastBrace + 1);
-    try {
-      return JSON.parse(slice);
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  return text;
 }
 
 function buildPrompt({ category, feedName, country, items }) {
   const top = items.slice(0, 6);
+
   const sources = top
     .map((it, idx) => {
+      const title = it.title;
       const excerpt = it.excerpt ? it.excerpt.slice(0, 260) : "";
-      return `${idx + 1}. ${it.title}\n   ${excerpt}\n   ${it.url}`;
+      const url = it.url;
+      return `${idx + 1}. ${title}\n   ${excerpt}\n   ${url}`;
     })
     .join("\n\n");
 
   return `
 Tu es un rédacteur de flash info.
-Tu dois produire UN seul "flash" synthétique, clair, court et utile.
 
-Contexte:
+Objectif :
+Produire UN seul flash synthétique, clair, court et utile, à partir des items ci-dessous.
+
+Contexte :
 - Catégorie: ${category}
 - Source principale: ${feedName}
 - Pays: ${country}
 
-Contraintes:
+Contraintes :
+- Tu DOIS traduire en français (titre et résumé), même si les sources sont en anglais.
 - Le titre doit être court et percutant (max ~90 caractères).
 - Le résumé doit faire 2 à 3 phrases (pas plus).
 - Style neutre, pas sensationnaliste.
 - Ne pas inventer des faits.
-- Si les items parlent d'un même sujet, fusionne-les. Sinon, choisis le sujet dominant.
+- Si les items parlent du même sujet, fusionne-les. Sinon, choisis le sujet dominant.
+- IMPORTANT : Ne mets AUCUN texte en dehors du JSON. Pas de markdown. Pas d’intro. Pas de conclusion.
 
-Réponds STRICTEMENT en JSON avec exactement ces clés :
-{ "title": "...", "summary": "..." }
+Tu dois répondre STRICTEMENT en JSON, avec exactement ces clés :
+{
+  "title": "...",
+  "summary": "..."
+}
 
-Voici les items (titres + extraits + liens):
+Voici les items (titres + extraits + liens) :
 ${sources}
 `.trim();
 }
@@ -291,7 +376,7 @@ async function synthesizeOne({ apiKey, version, modelName, feed }) {
     } catch (e) {
       const msg = String(e.message || e);
       if (msg.includes("NOT_FOUND") || msg.includes("not found") || msg.includes("not supported")) {
-        console.warn(`[gemini] model failed (${m}), trying next.`);
+        console.warn(`[gemini] model failed (${m}), trying next. reason: ${msg.slice(0, 180)}`);
         continue;
       }
       throw e;
@@ -301,8 +386,15 @@ async function synthesizeOne({ apiKey, version, modelName, feed }) {
   if (!text) throw new Error("[gemini] empty response after trying fallback models");
 
   const json = safeJsonExtract(text);
-  const title = (json?.title && String(json.title).trim()) || items[0].title || `${feedTitle}: mise à jour`;
-  const summary = (json?.summary && String(json.summary).trim()) || "Résumé indisponible.";
+
+  const title =
+    (json?.title && String(json.title).trim()) ||
+    items[0].title ||
+    `${feedTitle}: mise à jour`;
+
+  const summary =
+    (json?.summary && String(json.summary).trim()) ||
+    "Résumé indisponible.";
 
   const topImage = items.find((it) => it.image)?.image || null;
   const topUrl = items[0].url;
@@ -361,6 +453,7 @@ async function main() {
   const modelName = await pickGeminiModel(apiKey, version);
 
   const results = [];
+
   for (const feed of FEEDS) {
     try {
       const card = await synthesizeOne({ apiKey, version, modelName, feed });
@@ -383,12 +476,11 @@ async function main() {
     }
   }
 
+  // sort by category then date desc
   results.sort((a, b) => {
     if (a.category !== b.category) return a.category.localeCompare(b.category);
     return (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0);
   });
-
-  const byCat = groupBy(results, "category");
 
   await writeJson(path.join(DATA_DIR, "home.json"), {
     generatedAt: new Date().toISOString(),
@@ -396,6 +488,7 @@ async function main() {
     items: results,
   });
 
+  const byCat = groupBy(results, "category");
   for (const [cat, items] of byCat.entries()) {
     await writeJson(path.join(DATA_DIR, `${cat}.json`), {
       generatedAt: new Date().toISOString(),
