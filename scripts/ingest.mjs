@@ -1,111 +1,233 @@
-// scripts/ingest.mjs
-import { mkdir, writeFile } from "node:fs/promises";
-
 /**
- * Flash Info - Ingest RSS -> synthèse Gemini -> data/*.json
- * - Auto-select Gemini model via ListModels
- * - Works on GitHub Actions (Node 20+)
+ * Flash Info - RSS ingest + Gemini synth
+ * - RSS via rss-parser (parseString)
+ * - Gemini via REST (v1) WITHOUT ListModels (to avoid 503)
+ * - Auto model selection by trying a list (fallback on 404/403)
+ * - Writes data/*.json for the webapp
  */
 
-const log = (...a) => console.log(...a);
-
-const ISO = () => new Date().toISOString();
-const now = new Date();
+import fs from "node:fs/promises";
+import path from "node:path";
+import Parser from "rss-parser";
 
 const DATA_DIR = "data";
 
-// ---------------------------------------------
-// 1) Config RSS (à adapter quand tu voudras)
-// ---------------------------------------------
+// ---------- CONFIG ----------
 const FEEDS = [
   // Monde
   {
     name: "BBC",
-    section: "monde",
-    country: "GB",
     url: "https://feeds.bbci.co.uk/news/world/rss.xml",
-    emoji: "🌍",
+    category: "monde",
+    country: "GB",
   },
   {
     name: "France24",
-    section: "monde",
-    country: "FR",
     url: "https://www.france24.com/fr/rss",
-    emoji: "🌍",
+    category: "monde",
+    country: "FR",
   },
 
   // Tech
   {
     name: "The Verge",
-    section: "tech",
-    country: "US",
     url: "https://www.theverge.com/rss/index.xml",
-    emoji: "💻",
+    category: "tech",
+    country: "US",
   },
 
-  // Économie / Sport (exemples)
+  // Economie & Sport (Le Monde)
   {
-    name: "Le Monde (Éco)",
-    section: "economie",
-    country: "FR",
+    name: "Le Monde",
     url: "https://www.lemonde.fr/economie/rss_full.xml",
-    emoji: "💼",
+    category: "economie",
+    country: "FR",
   },
   {
-    name: "Le Monde (Sport)",
-    section: "sport",
-    country: "FR",
+    name: "Le Monde",
     url: "https://www.lemonde.fr/sport/rss_full.xml",
-    emoji: "⚽️",
+    category: "sport",
+    country: "FR",
   },
 ];
 
-// ---------------------------------------------
-// 2) Gemini: listModels + pickModel + generate
-// ---------------------------------------------
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_VERSION = process.env.GEMINI_API_VERSION || "v1"; // IMPORTANT: v1 (pas v1beta)
+const CATEGORY_LABELS = {
+  accueil: "Accueil",
+  pays: "Pays",
+  monde: "Monde",
+  economie: "Économie",
+  tech: "Tech",
+  sport: "Sport",
+};
 
-if (!GEMINI_API_KEY) {
-  throw new Error("Missing GEMINI_API_KEY (GitHub Secrets).");
+// combien d’items RSS on donne à Gemini par catégorie
+const MAX_ITEMS_PER_CATEGORY = 8;
+// on ignore les articles trop vieux
+const MAX_AGE_HOURS = 36;
+
+// Gemini
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const GEMINI_API_VERSION = process.env.GEMINI_API_VERSION || "v1"; // "v1" conseillé
+const GEMINI_MODEL_CANDIDATES = (process.env.GEMINI_MODEL_CANDIDATES || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+// Liste par défaut (on essaie, et on fallback si 404/403)
+const DEFAULT_MODEL_CANDIDATES = [
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+];
+
+const MODELS_TO_TRY =
+  GEMINI_MODEL_CANDIDATES.length > 0
+    ? GEMINI_MODEL_CANDIDATES
+    : DEFAULT_MODEL_CANDIDATES;
+
+// ---------- UTILS ----------
+function log(msg) {
+  console.log(msg);
 }
 
-async function listModels(apiKey, apiVersion) {
-  const url = `https://generativelanguage.googleapis.com/${apiVersion}/models?key=${apiKey}`;
-  const res = await fetch(url);
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(`ListModels error ${res.status}: ${JSON.stringify(json)}`);
+function nowISO() {
+  return new Date().toISOString();
+}
+
+function safeDate(d) {
+  const t = d ? new Date(d).getTime() : NaN;
+  return Number.isFinite(t) ? new Date(t) : null;
+}
+
+function hoursBetween(a, b) {
+  return Math.abs(a.getTime() - b.getTime()) / 36e5;
+}
+
+function makeId(str) {
+  // stable-ish id from string
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
   }
-  return json.models || [];
+  return `id_${(h >>> 0).toString(16)}`;
 }
 
-function pickModel(models) {
-  const usable = models.filter((m) =>
-    (m.supportedGenerationMethods || []).includes("generateContent")
-  );
+function pickImageUrl(item) {
+  // rss-parser fields vary by feed; try a few common spots
+  const enclosure = item.enclosure?.url;
+  if (enclosure && typeof enclosure === "string") return enclosure;
 
-  // Ordre de préférence (on prend le premier trouvé)
-  const preferredKeys = [
-    "gemini-2.0-flash",
-    "gemini-2.0",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-    "flash",
-    "pro",
-  ];
+  const itunes = item.itunes?.image;
+  if (itunes && typeof itunes === "string") return itunes;
 
-  for (const key of preferredKeys) {
-    const found = usable.find((m) => (m.name || "").includes(key));
-    if (found?.name) return found.name; // ex: "models/gemini-1.5-flash"
-  }
+  const mediaContent =
+    item["media:content"]?.url ||
+    item["media:content"]?.[0]?.url ||
+    item["media:thumbnail"]?.url ||
+    item["media:thumbnail"]?.[0]?.url;
+  if (mediaContent && typeof mediaContent === "string") return mediaContent;
 
-  if (usable[0]?.name) return usable[0].name;
-  throw new Error("No Gemini model supports generateContent (ListModels empty).");
+  return null;
 }
 
-async function geminiGenerateContent({ apiKey, apiVersion, modelName, prompt }) {
-  const url = `https://generativelanguage.googleapis.com/${apiVersion}/${modelName}:generateContent?key=${apiKey}`;
+function normalizeText(s) {
+  if (!s) return "";
+  return String(s)
+    .replace(/\s+/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+}
+
+function stripHtml(s) {
+  if (!s) return "";
+  return String(s)
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<\/?[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function countryFlagEmoji(code) {
+  if (!code || typeof code !== "string" || code.length !== 2) return "";
+  const A = 0x1f1e6;
+  const c1 = code.toUpperCase().charCodeAt(0) - 65 + A;
+  const c2 = code.toUpperCase().charCodeAt(1) - 65 + A;
+  return String.fromCodePoint(c1, c2);
+}
+
+async function ensureDir(dir) {
+  await fs.mkdir(dir, { recursive: true });
+}
+
+async function writeJSON(filepath, data) {
+  const json = JSON.stringify(data, null, 2);
+  await fs.writeFile(filepath, json, "utf-8");
+}
+
+// ---------- RSS ----------
+const parser = new Parser({
+  // on garde ça large, certains flux ont des champs custom
+  customFields: {
+    item: [
+      ["media:content", "media:content"],
+      ["media:thumbnail", "media:thumbnail"],
+    ],
+  },
+});
+
+async function fetchText(url) {
+  const res = await fetch(url, {
+    headers: {
+      "user-agent": "flash-info-bot/1.0 (+github actions)",
+      accept: "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7",
+    },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  return await res.text();
+}
+
+async function readFeed(feed) {
+  const xml = await fetchText(feed.url);
+  const parsed = await parser.parseString(xml);
+
+  const items = (parsed.items || []).map((it) => {
+    const title = normalizeText(it.title);
+    const link = it.link || it.guid || "";
+    const pub = safeDate(it.isoDate || it.pubDate) || new Date();
+
+    const content =
+      stripHtml(it.contentSnippet) ||
+      stripHtml(it.content) ||
+      stripHtml(it.summary) ||
+      "";
+
+    const imageUrl = pickImageUrl(it);
+
+    return {
+      id: makeId(`${feed.name}|${feed.url}|${link}|${title}`),
+      category: feed.category,
+      sourceName: feed.name,
+      sourceUrl: feed.url,
+      country: feed.country || null,
+      countryFlag: feed.country ? countryFlagEmoji(feed.country) : "",
+      title,
+      link,
+      publishedAt: pub.toISOString(),
+      snippet: content.slice(0, 400),
+      imageUrl,
+    };
+  });
+
+  return items;
+}
+
+// ---------- GEMINI REST ----------
+async function geminiGenerateWithModel({ model, prompt, temperature = 0.4, maxOutputTokens = 800 }) {
+  const endpoint = `https://generativelanguage.googleapis.com/${GEMINI_API_VERSION}/models/${model}:generateContent?key=${encodeURIComponent(
+    GEMINI_API_KEY
+  )}`;
 
   const body = {
     contents: [
@@ -115,371 +237,320 @@ async function geminiGenerateContent({ apiKey, apiVersion, modelName, prompt }) 
       },
     ],
     generationConfig: {
-      temperature: 0.4,
-      topP: 0.9,
-      maxOutputTokens: 900,
+      temperature,
+      maxOutputTokens,
     },
   };
 
-  const res = await fetch(url, {
+  const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 
-  const json = await res.json().catch(() => ({}));
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // Gemini renvoie normalement du JSON, mais on garde la trace
+    throw new Error(`Gemini API non-JSON response (${res.status}): ${text.slice(0, 300)}`);
+  }
 
   if (!res.ok) {
-    throw new Error(
-      `Gemini API error ${res.status}: ${JSON.stringify(json, null, 2)}`
-    );
+    const msg = json?.error?.message || `Gemini API error ${res.status}`;
+    const code = json?.error?.code || res.status;
+    const err = new Error(`${msg}`);
+    err.status = res.status;
+    err.code = code;
+    err.raw = json;
+    throw err;
   }
 
-  const text =
-    json?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
+  const out =
+    json?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") ||
+    "";
 
-  return { raw: json, text };
+  return out.trim();
 }
 
-function safeJsonFromText(text) {
-  // Gemini peut renvoyer du texte autour d’un JSON.
-  // On tente d’extraire le premier objet JSON.
-  const firstBrace = text.indexOf("{");
-  const lastBrace = text.lastIndexOf("}");
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) return null;
-
-  const slice = text.slice(firstBrace, lastBrace + 1);
-  try {
-    return JSON.parse(slice);
-  } catch {
-    return null;
-  }
-}
-
-// ---------------------------------------------
-// 3) RSS fetch + parse
-// ---------------------------------------------
-async function fetchText(url) {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "flash-info-bot/1.0 (+github-actions)",
-      "Accept": "application/rss+xml, application/xml, text/xml, */*",
-    },
-  });
-  if (!res.ok) throw new Error(`Fetch ${url} failed: ${res.status}`);
-  return await res.text();
-}
-
-async function parseRss(xml) {
-  // Try fast-xml-parser if installed
-  let FXP = null;
-  try {
-    const mod = await import("fast-xml-parser");
-    FXP = mod?.XMLParser ? mod : null;
-  } catch {
-    FXP = null;
+async function geminiGenerateAuto({ prompt, temperature, maxOutputTokens }) {
+  if (!GEMINI_API_KEY) {
+    throw new Error("Missing GEMINI_API_KEY (GitHub secret).");
   }
 
-  if (FXP?.XMLParser) {
-    const parser = new FXP.XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: "",
-    });
-    const obj = parser.parse(xml);
+  let lastErr = null;
 
-    // RSS2: rss.channel.item
-    const channel = obj?.rss?.channel;
-    if (channel?.item) {
-      const items = Array.isArray(channel.item) ? channel.item : [channel.item];
-      return items.map(normalizeRssItem);
-    }
+  for (const model of MODELS_TO_TRY) {
+    try {
+      const out = await geminiGenerateWithModel({
+        model,
+        prompt,
+        temperature,
+        maxOutputTokens,
+      });
+      return { model, text: out };
+    } catch (e) {
+      lastErr = e;
 
-    // Atom: feed.entry
-    const entries = obj?.feed?.entry;
-    if (entries) {
-      const arr = Array.isArray(entries) ? entries : [entries];
-      return arr.map(normalizeAtomEntry);
+      // 404/403 -> modèle pas dispo pour ton projet / région / méthode => on essaye le suivant
+      if (e.status === 404 || e.status === 403) {
+        log(`[gemini] model not usable: ${model} (${e.status}) -> try next`);
+        continue;
+      }
+
+      // 429/503 -> temporaire : on tente une mini-retry puis on continue
+      if (e.status === 429 || e.status === 503) {
+        log(`[gemini] temporary error ${e.status} on ${model} -> retry once`);
+        await new Promise((r) => setTimeout(r, 1500));
+        try {
+          const out = await geminiGenerateWithModel({
+            model,
+            prompt,
+            temperature,
+            maxOutputTokens,
+          });
+          return { model, text: out };
+        } catch (e2) {
+          lastErr = e2;
+          log(`[gemini] retry failed on ${model} (${e2.status || "?"}) -> try next`);
+          continue;
+        }
+      }
+
+      // autre erreur => on garde mais on tente quand même le suivant
+      log(`[gemini] error on ${model}: ${e.message} -> try next`);
     }
   }
 
-  // Fallback ultra-simple (regex) : prend <item>...</item>
-  const items = [];
-  const itemBlocks = xml.match(/<item[\s\S]*?<\/item>/g) || [];
-  for (const block of itemBlocks) {
-    const title = pickTag(block, "title");
-    const link = pickTag(block, "link");
-    const pubDate = pickTag(block, "pubDate");
-    const description = pickTag(block, "description") || pickTag(block, "content:encoded");
-    items.push({
-      title: cleanText(title),
-      link: cleanText(link),
-      pubDate: cleanText(pubDate),
-      description: cleanText(description),
-    });
-  }
-  return items;
+  throw lastErr || new Error("Gemini failed (no usable model).");
 }
 
-function normalizeRssItem(it) {
-  return {
-    title: cleanText(it?.title),
-    link: cleanText(it?.link),
-    pubDate: cleanText(it?.pubDate),
-    description: cleanText(it?.description || it?.["content:encoded"]),
-  };
-}
+// ---------- SYNTHESIS ----------
+function buildPrompt(category, items) {
+  const label = CATEGORY_LABELS[category] || category;
 
-function normalizeAtomEntry(e) {
-  const link =
-    typeof e?.link === "string"
-      ? e.link
-      : Array.isArray(e?.link)
-      ? e.link.find((l) => l.rel === "alternate")?.href || e.link[0]?.href
-      : e?.link?.href;
-
-  return {
-    title: cleanText(e?.title),
-    link: cleanText(link),
-    pubDate: cleanText(e?.updated || e?.published),
-    description: cleanText(e?.summary || e?.content),
-  };
-}
-
-function pickTag(block, tag) {
-  const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
-  return m ? m[1] : "";
-}
-
-function cleanText(s) {
-  if (!s) return "";
-  return String(s)
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function parseDateSafe(s) {
-  const d = s ? new Date(s) : null;
-  return d && !isNaN(d.getTime()) ? d : null;
-}
-
-// ---------------------------------------------
-// 4) Synthèse “article” par section
-// ---------------------------------------------
-function buildSynthesisPrompt(section, items) {
-  // On donne titres + snippets + liens pour que Gemini regroupe
-  const lines = items.slice(0, 8).map((it, i) => {
-    return `${i + 1}. ${it.title}\n   Source: ${it.sourceName}\n   Lien: ${
-      it.link
-    }\n   Extrait: ${it.description || "(vide)"}\n`;
-  });
+  // On donne à Gemini de la matière structurée + contraintes de sortie JSON
+  const sourcesBlock = items
+    .map((it, idx) => {
+      const src = it.sourceName + (it.country ? ` (${it.country})` : "");
+      return `#${idx + 1} [${src}] ${it.title}\nLien: ${it.link}\nExtrait: ${it.snippet}\n`;
+    })
+    .join("\n");
 
   return `
-Tu es un rédacteur en chef. Tu dois regrouper plusieurs brèves qui parlent du même sujet en UN article synthèse.
+Tu es un rédacteur "Flash Info" en français.
+Tu reçois plusieurs articles (titres + extraits) sur le thème: ${label}.
 
-Contraintes:
-- Langue: FR
-- Ne pas inventer de faits.
-- Si les sources sont trop différentes, fais plutôt une synthèse multi-points (2 à 4 points).
-- Style: clair, mobile-first.
-- Donne une sortie STRICTEMENT au format JSON, sans texte autour.
+Objectif:
+- Produire UNE synthèse claire et utile.
+- Ne pas inventer des faits non présents dans les sources.
+- Si des sources se contredisent: le dire ("selon X... selon Y...").
 
-Format JSON attendu:
+Sortie OBLIGATOIRE: un JSON strict (pas de markdown, pas de texte autour), au format:
+
 {
-  "title": "Titre très court et impactant",
-  "summary": "Résumé en 2 phrases max",
-  "body": "Texte synthèse (5 à 12 lignes)",
-  "key_points": ["...", "...", "..."],
-  "sources": [
-    {"name":"...", "url":"..."},
-    {"name":"...", "url":"..."}
-  ]
+  "title": "Titre court et accrocheur",
+  "summary": "2-3 phrases maximum",
+  "body": "Texte 6 à 12 phrases, paragraphes courts, style mobile.",
+  "keyPoints": ["point 1", "point 2", "point 3"],
+  "countries": ["FR", "US"] // optionnel, seulement si pertinent
 }
 
-SECTION: ${section.toUpperCase()}
-
-SOURCES:
-${lines.join("\n")}
+Sources:
+${sourcesBlock}
 `.trim();
 }
 
-// ---------------------------------------------
-// 5) Main
-// ---------------------------------------------
+function fallbackSynthesis(category, items) {
+  const label = CATEGORY_LABELS[category] || category;
+  const top = items.slice(0, 3);
+  const title = top[0]?.title ? `${label} : ${top[0].title}` : `${label} : point de situation`;
+  const summary = top
+    .map((x) => x.title)
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" • ")
+    .slice(0, 180);
+
+  const body =
+    top
+      .map((x) => `- ${x.title}${x.sourceName ? ` (${x.sourceName})` : ""}`)
+      .join("\n") || "Aucune donnée disponible.";
+
+  return {
+    title,
+    summary: summary || "Synthèse temporairement indisponible.",
+    body,
+    keyPoints: top.map((x) => x.title).filter(Boolean).slice(0, 3),
+    countries: Array.from(new Set(items.map((x) => x.country).filter(Boolean))).slice(0, 6),
+  };
+}
+
+function safeParseJSON(text) {
+  // Gemini peut parfois ajouter des ```json ...```
+  const cleaned = text
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
+  return JSON.parse(cleaned);
+}
+
+// ---------- MAIN ----------
 async function main() {
-  log(`[ingest] start ${ISO()}`);
+  log(`[ingest] start ${nowISO()}`);
 
-  // Gemini model auto-select
-  const models = await listModels(GEMINI_API_KEY, GEMINI_API_VERSION);
-  const MODEL_NAME = pickModel(models);
-  log(`[gemini] using ${MODEL_NAME} (${GEMINI_API_VERSION})`);
+  await ensureDir(DATA_DIR);
 
-  // Fetch all feeds
+  // 1) Fetch RSS
   const allItems = [];
   for (const feed of FEEDS) {
     try {
-      const xml = await fetchText(feed.url);
-      const items = await parseRss(xml);
-
-      // Normalize with feed metadata
-      const normalized = items
-        .map((it) => {
-          const d = parseDateSafe(it.pubDate);
-          return {
-            id: stableId(feed.name, it.link || it.title),
-            section: feed.section,
-            country: feed.country,
-            sourceName: feed.name,
-            title: it.title,
-            link: it.link,
-            description: it.description,
-            publishedAt: d ? d.toISOString() : null,
-            // placeholder image: l’app affichera une photo plus tard;
-            // si pas d'image, l’app peut fallback emoji
-            imageUrl: null,
-            emojiFallback: feed.emoji,
-          };
-        })
-        .filter((x) => x.title && x.link);
-
-      // Optional filter: recent (48h)
-      const recent = normalized.filter((x) => {
-        if (!x.publishedAt) return true;
-        const d = new Date(x.publishedAt);
-        return now - d < 48 * 3600 * 1000;
-      });
-
-      allItems.push(...recent);
-      log(`[rss] ok ${feed.name} (${feed.section})`);
+      const items = await readFeed(feed);
+      log(`[rss] ok ${feed.name} (${feed.category})`);
+      allItems.push(...items);
     } catch (e) {
-      log(`[rss] fail ${feed.name} (${feed.section}) -> ${e.message}`);
+      log(`[rss] fail ${feed.name} (${feed.category}): ${e.message}`);
     }
   }
 
-  // Sort by date desc (null last)
-  allItems.sort((a, b) => {
-    const ad = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-    const bd = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-    return bd - ad;
-  });
+  // 2) Filter age + sort
+  const now = new Date();
+  const recentItems = allItems
+    .filter((it) => {
+      const d = safeDate(it.publishedAt);
+      if (!d) return false;
+      return hoursBetween(now, d) <= MAX_AGE_HOURS;
+    })
+    .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
-  // Build flashes: simple headline list (top 25)
-  const flashes = allItems.slice(0, 25).map((it) => ({
-    id: it.id,
-    section: it.section,
-    country: it.country,
-    title: it.title,
-    sourceName: it.sourceName,
-    link: it.link,
-    publishedAt: it.publishedAt,
-    emojiFallback: it.emojiFallback,
-    imageUrl: it.imageUrl,
-  }));
+  // 3) Group by category
+  const categories = Array.from(new Set(FEEDS.map((f) => f.category)));
+  const byCat = {};
+  for (const c of categories) byCat[c] = [];
 
-  // Build synthesized articles per section (top items per section)
-  const sections = [...new Set(allItems.map((x) => x.section))];
-  const synthesized = [];
+  for (const it of recentItems) {
+    if (!byCat[it.category]) byCat[it.category] = [];
+    if (byCat[it.category].length < MAX_ITEMS_PER_CATEGORY) byCat[it.category].push(it);
+  }
 
-  for (const section of sections) {
-    const items = allItems.filter((x) => x.section === section).slice(0, 8);
-    if (items.length < 2) continue;
+  // 4) For each category, synthesize with Gemini (or fallback)
+  const synth = [];
+  for (const [category, items] of Object.entries(byCat)) {
+    if (!items || items.length === 0) continue;
 
-    const prompt = buildSynthesisPrompt(section, items);
-    const { text } = await geminiGenerateContent({
-      apiKey: GEMINI_API_KEY,
-      apiVersion: GEMINI_API_VERSION,
-      modelName: MODEL_NAME,
-      prompt,
-    });
+    let synthesis = null;
+    let usedModel = null;
 
-    const json = safeJsonFromText(text);
-    if (!json?.title || !json?.body) {
-      log(`[gemini] warn: bad json for section ${section}, fallback minimal`);
-      synthesized.push({
-        id: stableId("synth", section + ":" + ISO()),
-        section,
-        title: items[0]?.title || `Synthèse ${section}`,
-        summary: items[0]?.description?.slice(0, 160) || "",
-        body: items.map((x) => `• ${x.title}`).join("\n"),
-        key_points: items.slice(0, 4).map((x) => x.title),
-        sources: items.slice(0, 6).map((x) => ({ name: x.sourceName, url: x.link })),
-        updatedAt: ISO(),
+    try {
+      const prompt = buildPrompt(category, items);
+      const { model, text } = await geminiGenerateAuto({
+        prompt,
+        temperature: 0.35,
+        maxOutputTokens: 900,
       });
-      continue;
+      usedModel = model;
+
+      const parsed = safeParseJSON(text);
+
+      // Validation minimale
+      if (!parsed?.title || !parsed?.summary || !parsed?.body) {
+        throw new Error("Gemini JSON missing required fields.");
+      }
+
+      synthesis = {
+        title: normalizeText(parsed.title).slice(0, 140),
+        summary: normalizeText(parsed.summary).slice(0, 260),
+        body: String(parsed.body || "").trim(),
+        keyPoints: Array.isArray(parsed.keyPoints)
+          ? parsed.keyPoints.map((x) => normalizeText(x)).filter(Boolean).slice(0, 5)
+          : [],
+        countries: Array.isArray(parsed.countries)
+          ? parsed.countries.map((c) => String(c).toUpperCase()).slice(0, 8)
+          : [],
+      };
+    } catch (e) {
+      log(`[gemini] fail (${category}): ${e.message}`);
+      synthesis = fallbackSynthesis(category, items);
     }
 
-    synthesized.push({
-      id: stableId("synth", section + ":" + ISO()),
-      section,
-      title: String(json.title).trim(),
-      summary: String(json.summary || "").trim(),
-      body: String(json.body).trim(),
-      key_points: Array.isArray(json.key_points) ? json.key_points.slice(0, 6) : [],
-      sources: Array.isArray(json.sources) ? json.sources.slice(0, 8) : [],
-      updatedAt: ISO(),
-    });
+    // Choix image: première image trouvée dans les items (sinon null -> UI fallback emoji)
+    const imageUrl = items.map((x) => x.imageUrl).find(Boolean) || null;
 
-    log(`[gemini] ok synth ${section}`);
+    // Countries utiles pour Monde (badges + drapeaux)
+    const countriesFromFeeds = Array.from(
+      new Set(items.map((x) => x.country).filter(Boolean))
+    ).slice(0, 8);
+
+    const entry = {
+      id: makeId(`synth|${category}|${items[0]?.id || ""}|${nowISO()}`),
+      category,
+      categoryLabel: CATEGORY_LABELS[category] || category,
+      updatedAt: nowISO(),
+      model: usedModel || null,
+
+      // visuel
+      imageUrl,
+      // fallback emoji côté front (si imageUrl null/404)
+      emojiFallback:
+        category === "monde"
+          ? "🌍"
+          : category === "economie"
+          ? "💼"
+          : category === "tech"
+          ? "🔧"
+          : category === "sport"
+          ? "⚽"
+          : "📰",
+
+      // contenu
+      title: synthesis.title,
+      summary: synthesis.summary,
+      body: synthesis.body,
+      keyPoints: synthesis.keyPoints || [],
+
+      // badges simplifiés
+      countries:
+        synthesis.countries && synthesis.countries.length
+          ? synthesis.countries
+          : countriesFromFeeds,
+
+      // sources (pour afficher "X sources" + liens éventuels)
+      sources: items.map((x) => ({
+        name: x.sourceName,
+        country: x.country,
+        flag: x.countryFlag,
+        title: x.title,
+        link: x.link,
+        publishedAt: x.publishedAt,
+      })),
+      sourcesCount: items.length,
+    };
+
+    synth.push(entry);
   }
 
-  // Write outputs
-  await mkdir(DATA_DIR, { recursive: true });
+  // 5) Sort synth by category order (optional)
+  const order = ["monde", "economie", "sport", "tech"];
+  synth.sort((a, b) => order.indexOf(a.category) - order.indexOf(b.category));
 
-  await writeFile(
-    `${DATA_DIR}/flashes.json`,
-    JSON.stringify(
-      {
-        updatedAt: ISO(),
-        count: flashes.length,
-        items: flashes,
-      },
-      null,
-      2
-    ),
-    "utf8"
-  );
+  // 6) Write outputs
+  const payload = {
+    updatedAt: nowISO(),
+    items: synth,
+  };
 
-  await writeFile(
-    `${DATA_DIR}/items.json`,
-    JSON.stringify(
-      {
-        updatedAt: ISO(),
-        count: allItems.length,
-        items: allItems.slice(0, 200),
-      },
-      null,
-      2
-    ),
-    "utf8"
-  );
+  await writeJSON(path.join(DATA_DIR, "feeds.json"), payload);
 
-  await writeFile(
-    `${DATA_DIR}/articles.json`,
-    JSON.stringify(
-      {
-        updatedAt: ISO(),
-        count: synthesized.length,
-        items: synthesized,
-      },
-      null,
-      2
-    ),
-    "utf8"
-  );
-
-  log(`[ingest] done -> data/flashes.json, data/items.json, data/articles.json`);
-}
-
-function stableId(prefix, seed) {
-  // hash léger sans dépendances
-  const s = `${prefix}:${seed}`;
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+  // Optionnel: fichiers par catégorie (pratique si tu veux charger à la demande)
+  for (const item of synth) {
+    await writeJSON(path.join(DATA_DIR, `${item.category}.json`), item);
   }
-  return `${prefix}_${(h >>> 0).toString(16)}`;
+
+  log(`[ingest] wrote ${synth.length} synth items -> data/feeds.json`);
+  log(`[ingest] done ${nowISO()}`);
 }
 
 main().catch((e) => {
