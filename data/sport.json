@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-02-17T00:47:04.817Z",
+  "generatedAt": "2026-02-17T14:37:39.026Z",
   "category": "sport",
   "count": 1,
   "items": [
     {
-      "id": "692c912c46c6",
+      "id": "efd82b13e59f",
       "category": "sport",
       "country": "FR",
-      "source": "Le Monde (sport)",
+      "source": "Le Monde",
       "sourcesCount": 6,
-      "title": "JO 2026 : la solitude de McGrath et le fiasco français en slalom, , l’hégémonie néerlandaise en short-track… Le résumé du lundi 16 février",
+      "title": "Patinage artistique aux JO 2026 : avec Adeliia Petrosian, le retour très attendu des Russes dans l’épreuve individuelle féminine",
       "summary": "Résumé indisponible.",
-      "url": "https://www.lemonde.fr/sport/article/2026/02/16/jo-2026-la-solitude-de-mcgrath-et-le-fiasco-francais-en-slalom-l-hegemonie-neerlandaise-en-short-track-le-resume-du-lundi-16-fevrier_6667009_3242.html",
-      "image": null,
-      "updatedAt": "2026-02-17T00:47:04.809Z",
+      "url": "https://www.lemonde.fr/sport/article/2026/02/17/patinage-artistique-aux-jo-2026-avec-adeliia-petrosian-le-retour-tres-attendu-des-russes-dans-l-epreuve-individuelle-feminine_6667103_3242.html",
+      "image": "https://img.lemde.fr/2026/01/22/0/0/6605/3302/644/322/60/0/a44e8fa_ftp-1-stlpvq8sfg34-44a85f41e8c240ffb2b56e0306f3c1a9-0-d10fe149ae604ec1b8405ab3561689ee.jpg",
+      "updatedAt": "2026-02-17T14:37:39.016Z",
       "model": "models/gemini-2.5-flash"
     }
   ]

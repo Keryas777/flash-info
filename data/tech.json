@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-02-17T00:47:04.818Z",
+  "generatedAt": "2026-02-17T14:37:39.026Z",
   "category": "tech",
   "count": 1,
   "items": [
     {
-      "id": "a642198d9223",
+      "id": "93590da4b1f6",
       "category": "tech",
       "country": "US",
-      "source": "The Verge (tech)",
+      "source": "The Verge",
       "sourcesCount": 6,
-      "title": "Apple starts testing end-to-end encrypted RCS messages on iPhone",
+      "title": "Peak Design has wearable gadget straps for people who hate bags",
       "summary": "Résumé indisponible.",
-      "url": "https://www.theverge.com/tech/879792/apple-iphone-android-rcs-messages-end-to-end-encrypted",
-      "image": "https://platform.theverge.com/wp-content/uploads/sites/2/2025/09/DSC01706-1.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100",
-      "updatedAt": "2026-02-17T00:46:59.031Z",
+      "url": "https://www.theverge.com/tech/879908/peak-design-crossbody-phone-strap-launch-price",
+      "image": "https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/mobile-crossbodymultistrap-ocean-159A1490.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100",
+      "updatedAt": "2026-02-17T14:37:33.470Z",
       "model": "models/gemini-2.5-flash"
     }
   ]

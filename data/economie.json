@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-02-17T00:47:04.817Z",
+  "generatedAt": "2026-02-17T14:37:39.025Z",
   "category": "economie",
   "count": 1,
   "items": [
     {
-      "id": "f0253b0af1b0",
+      "id": "d0ee546a56cf",
       "category": "economie",
       "country": "FR",
-      "source": "Le Monde (economie)",
+      "source": "Le Monde",
       "sourcesCount": 6,
-      "title": "Après les accusations d’Annie Genevard, les distributeurs vont boycotter le comité de suivi sur les négociations commerciales",
+      "title": "Warner Bros ouvre sept jours de discussion avec Paramount pour discuter de son offre de rachat",
       "summary": "Résumé indisponible.",
-      "url": "https://www.lemonde.fr/economie/article/2026/02/16/apres-les-accusations-d-annie-genevard-les-distributeurs-vont-boycotter-le-comite-de-suivi-sur-les-negociations-commerciales_6667004_3234.html",
-      "image": null,
-      "updatedAt": "2026-02-17T00:47:01.635Z",
+      "url": "https://www.lemonde.fr/economie/article/2026/02/17/warner-bros-ouvre-sept-jours-de-discussion-avec-paramount-pour-discuter-de-son-offre-de-rachat_6667108_3234.html",
+      "image": "https://img.lemde.fr/2026/01/20/204/0/6500/3250/644/322/60/0/6f6cd51_ftp-1-ultkwauotl8p-2026-01-20t202043z-979527603-rc205ja9uew8-rtrmadp-3-warner-bros-discovery-m-a-netflix.JPG",
+      "updatedAt": "2026-02-17T14:37:36.374Z",
       "model": "models/gemini-2.5-flash"
     }
   ]

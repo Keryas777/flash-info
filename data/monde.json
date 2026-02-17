@@ -1,32 +1,32 @@
 {
-  "generatedAt": "2026-02-17T00:47:04.817Z",
+  "generatedAt": "2026-02-17T14:37:39.025Z",
   "category": "monde",
   "count": 2,
   "items": [
     {
-      "id": "83ffc36ffabc",
+      "id": "5520615be3e6",
       "category": "monde",
       "country": "FR",
-      "source": "France24 (monde)",
+      "source": "France24",
       "sourcesCount": 6,
-      "title": "Faux visuels, fausses vidéos : attention aux intox suite à l’agression mortelle de Quentin Deranque",
+      "title": "France : Gisèle Pélicot se raconte dans le livre évènement \"Et la joie de vivre\"",
       "summary": "Résumé indisponible.",
-      "url": "https://www.france24.com/fr/%C3%A9missions/info-ou-intox/20260216-faux-visuels-fausses-vid%C3%A9os-attention-aux-intox-suite-%C3%A0-l-agression-mortelle-de-quentin-deranque",
-      "image": "https://s.france24.com/media/display/0647ff7e-0b81-11f1-b4f9-005056bf30b7/w:1024/p:16x9/capture-14690904226993905482f2b6-70248571.jpg",
-      "updatedAt": "2026-02-17T00:46:56.855Z",
+      "url": "https://www.france24.com/fr/vid%C3%A9o/20260217-france-gis%C3%A8le-p%C3%A9licot-se-raconte-dans-le-livre-%C3%A9v%C3%A8nement-et-la-joie-de-vivre",
+      "image": "https://s.france24.com/media/display/b5a22b32-0c05-11f1-9187-005056a90284/w:1024/p:16x9/FR-20260217-135312-135501-CS.jpg",
+      "updatedAt": "2026-02-17T14:37:30.770Z",
       "model": "models/gemini-2.5-flash"
     },
     {
-      "id": "e5de000cf25b",
+      "id": "0e6aa80f4c85",
       "category": "monde",
       "country": "GB",
-      "source": "BBC (monde)",
+      "source": "BBC",
       "sourcesCount": 6,
-      "title": "'It's never too late': Savannah Guthrie's new plea for mother's release as FBI analyses glove",
+      "title": "Nuclear talks between US and Iran end in Geneva",
       "summary": "Résumé indisponible.",
-      "url": "https://www.bbc.com/news/articles/c5yrv2g16e2o?at_medium=RSS&at_campaign=rss",
-      "image": null,
-      "updatedAt": "2026-02-17T00:46:54.373Z",
+      "url": "https://www.bbc.com/news/articles/cwyknjnd706o?at_medium=RSS&at_campaign=rss",
+      "image": "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/1ec3/live/b50ab7a0-0be9-11f1-8d90-772c0d7aea09.png",
+      "updatedAt": "2026-02-17T14:37:28.028Z",
       "model": "models/gemini-2.5-flash"
     }
   ]
