@@ -7,9 +7,6 @@
   "engines": {
     "node": ">=20"
   },
-  "scripts": {
-    "ingest": "node scripts/ingest.mjs"
-  },
   "dependencies": {
     "rss-parser": "^3.13.0"
   }
