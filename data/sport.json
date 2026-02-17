@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-02-17T00:47:04.817Z",
+  "category": "sport",
+  "count": 1,
+  "items": [
+    {
+      "id": "692c912c46c6",
+      "category": "sport",
+      "country": "FR",
+      "source": "Le Monde (sport)",
+      "sourcesCount": 6,
+      "title": "JO 2026 : la solitude de McGrath et le fiasco français en slalom, , l’hégémonie néerlandaise en short-track… Le résumé du lundi 16 février",
+      "summary": "Résumé indisponible.",
+      "url": "https://www.lemonde.fr/sport/article/2026/02/16/jo-2026-la-solitude-de-mcgrath-et-le-fiasco-francais-en-slalom-l-hegemonie-neerlandaise-en-short-track-le-resume-du-lundi-16-fevrier_6667009_3242.html",
+      "image": null,
+      "updatedAt": "2026-02-17T00:47:04.809Z",
+      "model": "models/gemini-2.5-flash"
+    }
+  ]
+}

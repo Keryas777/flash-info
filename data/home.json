@@ -1,0 +1,71 @@
+{
+  "generatedAt": "2026-02-17T00:47:04.816Z",
+  "count": 5,
+  "items": [
+    {
+      "id": "f0253b0af1b0",
+      "category": "economie",
+      "country": "FR",
+      "source": "Le Monde (economie)",
+      "sourcesCount": 6,
+      "title": "Après les accusations d’Annie Genevard, les distributeurs vont boycotter le comité de suivi sur les négociations commerciales",
+      "summary": "Résumé indisponible.",
+      "url": "https://www.lemonde.fr/economie/article/2026/02/16/apres-les-accusations-d-annie-genevard-les-distributeurs-vont-boycotter-le-comite-de-suivi-sur-les-negociations-commerciales_6667004_3234.html",
+      "image": null,
+      "updatedAt": "2026-02-17T00:47:01.635Z",
+      "model": "models/gemini-2.5-flash"
+    },
+    {
+      "id": "83ffc36ffabc",
+      "category": "monde",
+      "country": "FR",
+      "source": "France24 (monde)",
+      "sourcesCount": 6,
+      "title": "Faux visuels, fausses vidéos : attention aux intox suite à l’agression mortelle de Quentin Deranque",
+      "summary": "Résumé indisponible.",
+      "url": "https://www.france24.com/fr/%C3%A9missions/info-ou-intox/20260216-faux-visuels-fausses-vid%C3%A9os-attention-aux-intox-suite-%C3%A0-l-agression-mortelle-de-quentin-deranque",
+      "image": "https://s.france24.com/media/display/0647ff7e-0b81-11f1-b4f9-005056bf30b7/w:1024/p:16x9/capture-14690904226993905482f2b6-70248571.jpg",
+      "updatedAt": "2026-02-17T00:46:56.855Z",
+      "model": "models/gemini-2.5-flash"
+    },
+    {
+      "id": "e5de000cf25b",
+      "category": "monde",
+      "country": "GB",
+      "source": "BBC (monde)",
+      "sourcesCount": 6,
+      "title": "'It's never too late': Savannah Guthrie's new plea for mother's release as FBI analyses glove",
+      "summary": "Résumé indisponible.",
+      "url": "https://www.bbc.com/news/articles/c5yrv2g16e2o?at_medium=RSS&at_campaign=rss",
+      "image": null,
+      "updatedAt": "2026-02-17T00:46:54.373Z",
+      "model": "models/gemini-2.5-flash"
+    },
+    {
+      "id": "692c912c46c6",
+      "category": "sport",
+      "country": "FR",
+      "source": "Le Monde (sport)",
+      "sourcesCount": 6,
+      "title": "JO 2026 : la solitude de McGrath et le fiasco français en slalom, , l’hégémonie néerlandaise en short-track… Le résumé du lundi 16 février",
+      "summary": "Résumé indisponible.",
+      "url": "https://www.lemonde.fr/sport/article/2026/02/16/jo-2026-la-solitude-de-mcgrath-et-le-fiasco-francais-en-slalom-l-hegemonie-neerlandaise-en-short-track-le-resume-du-lundi-16-fevrier_6667009_3242.html",
+      "image": null,
+      "updatedAt": "2026-02-17T00:47:04.809Z",
+      "model": "models/gemini-2.5-flash"
+    },
+    {
+      "id": "a642198d9223",
+      "category": "tech",
+      "country": "US",
+      "source": "The Verge (tech)",
+      "sourcesCount": 6,
+      "title": "Apple starts testing end-to-end encrypted RCS messages on iPhone",
+      "summary": "Résumé indisponible.",
+      "url": "https://www.theverge.com/tech/879792/apple-iphone-android-rcs-messages-end-to-end-encrypted",
+      "image": "https://platform.theverge.com/wp-content/uploads/sites/2/2025/09/DSC01706-1.jpg?quality=90&#038;strip=all&#038;crop=0,0,100,100",
+      "updatedAt": "2026-02-17T00:46:59.031Z",
+      "model": "models/gemini-2.5-flash"
+    }
+  ]
+}
