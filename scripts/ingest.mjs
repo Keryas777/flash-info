@@ -1,60 +1,77 @@
 // scripts/ingest.mjs
-// Node 20+ (fetch natif)
+// Node 20+
 //
 // Objectif :
 // - Récupérer des flux RSS
-// - Prendre quelques items récents
-// - Appeler Gemini pour synthétiser en 1 flash par flux
+// - Pour chaque flux : prendre quelques items récents
+// - Appeler Gemini pour synthétiser en 1 "flash"
 // - Écrire data/home.json + data/{categorie}.json
 //
-// Env :
+// Env attendues :
 // - GEMINI_API_KEY (obligatoire)
-// - GEMINI_API_VERSION (optionnel, défaut "v1")  // "v1" recommandé
+// - GEMINI_API_VERSION (optionnel, défaut "v1")
 // - GEMINI_MODEL (optionnel, force un modèle précis)
 
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
-import Parser from "rss-parser";
+import { setGlobalDispatcher, Agent } from "undici";
+
+// ✅ Evite que des connexions HTTP keep-alive gardent Node en vie
+setGlobalDispatcher(
+  new Agent({
+    keepAliveTimeout: 1,
+    keepAliveMaxTimeout: 1,
+  })
+);
+
+let XMLParser;
+try {
+  const mod = await import("fast-xml-parser");
+  XMLParser = mod.XMLParser;
+} catch (e) {
+  throw new Error(
+    "Dépendance manquante: fast-xml-parser. Installe-la avec: npm i fast-xml-parser"
+  );
+}
 
 const startedAt = new Date().toISOString();
 console.log(`[ingest] start ${startedAt}`);
 
 const DATA_DIR = path.resolve("data");
 
-// Catégories (alignées avec ton app.js: tech/economie/sport/monde)
 const FEEDS = [
   {
     id: "bbc-world",
-    name: "BBC (monde)",
+    name: "BBC",
     category: "monde",
     country: "GB",
     url: "http://feeds.bbci.co.uk/news/world/rss.xml",
   },
   {
     id: "france24-world",
-    name: "France24 (monde)",
+    name: "France24",
     category: "monde",
     country: "FR",
     url: "https://www.france24.com/fr/rss",
   },
   {
     id: "theverge-tech",
-    name: "The Verge (tech)",
+    name: "The Verge",
     category: "tech",
     country: "US",
     url: "https://www.theverge.com/rss/index.xml",
   },
   {
     id: "lemonde-eco",
-    name: "Le Monde (economie)",
+    name: "Le Monde",
     category: "economie",
     country: "FR",
     url: "https://www.lemonde.fr/economie/rss_full.xml",
   },
   {
     id: "lemonde-sport",
-    name: "Le Monde (sport)",
+    name: "Le Monde",
     category: "sport",
     country: "FR",
     url: "https://www.lemonde.fr/sport/rss_full.xml",
@@ -70,7 +87,11 @@ function sleep(ms) {
 }
 
 function stableId(...parts) {
-  return crypto.createHash("sha1").update(parts.join("|")).digest("hex").slice(0, 12);
+  return crypto
+    .createHash("sha1")
+    .update(parts.join("|"))
+    .digest("hex")
+    .slice(0, 12);
 }
 
 function stripHtml(input = "") {
@@ -82,6 +103,17 @@ function stripHtml(input = "") {
     .trim();
 }
 
+function pickFirstText(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number") return String(v);
+  if (Array.isArray(v)) return pickFirstText(v[0]);
+  if (typeof v === "object") {
+    if (typeof v["#text"] === "string") return v["#text"];
+  }
+  return "";
+}
+
 function toIsoDateMaybe(d) {
   if (!d) return null;
   const t = Date.parse(d);
@@ -89,73 +121,164 @@ function toIsoDateMaybe(d) {
   return new Date(t).toISOString();
 }
 
-function pickImageFromItem(item) {
-  // rss-parser normalize souvent :
-  // - enclosure.url
-  // - itunes:image
-  // - media:content (via item["media:content"] selon feed)
-  const enc = item.enclosure?.url;
-  if (enc) return enc;
-
-  const itunesImg = item["itunes:image"]?.href || item["itunes:image"]?.url;
-  if (itunesImg) return itunesImg;
-
+function extractImage(item) {
   const media = item["media:content"] || item["media:thumbnail"];
   if (media) {
-    if (Array.isArray(media)) {
-      for (const m of media) {
-        const u = m?.url || m?.href;
-        if (u) return u;
-      }
-    } else {
-      const u = media?.url || media?.href;
-      if (u) return u;
+    const arr = Array.isArray(media) ? media : [media];
+    for (const m of arr) {
+      const u = m?.["@_url"] || m?.url || m?._url;
+      if (u && typeof u === "string") return u;
     }
   }
 
-  // Dernier recours : scrapper un <img> dans contentSnippet/content
-  const html = item.content || item["content:encoded"] || "";
-  const m = String(html).match(/<img[^>]+src=["']([^"']+)["']/i);
+  const enc = item.enclosure;
+  if (enc) {
+    const u = enc?.["@_url"] || enc?._url;
+    if (u && typeof u === "string") return u;
+  }
+
+  const img = item.image?.url || item.image?.href;
+  if (img && typeof img === "string") return img;
+
+  const content = pickFirstText(item.description) || pickFirstText(item.content);
+  const m = content.match(/<img[^>]+src=["']([^"']+)["']/i);
   if (m?.[1]) return m[1];
 
   return null;
 }
 
 // ---------------------------
-// RSS parsing
+// RSS fetch & parse
 // ---------------------------
 
-const parser = new Parser({
-  headers: {
-    "User-Agent": "flash-info-bot/1.0 (+github actions)",
-    Accept: "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7",
-  },
-  timeout: 20000,
-});
+async function fetchText(url) {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "flash-info-bot/1.0 (+github actions)",
+      Accept:
+        "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7",
+      Connection: "close",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`RSS fetch failed ${res.status} for ${url}`);
+  }
+  return await res.text();
+}
+
+function parseFeed(xml) {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@_",
+    allowBooleanAttributes: true,
+    parseTagValue: true,
+    trimValues: true,
+  });
+
+  const doc = parser.parse(xml);
+
+  if (doc?.rss?.channel) {
+    const channel = doc.rss.channel;
+    const items = channel.item
+      ? Array.isArray(channel.item)
+        ? channel.item
+        : [channel.item]
+      : [];
+    return {
+      title: pickFirstText(channel.title),
+      items,
+      type: "rss",
+    };
+  }
+
+  if (doc?.feed) {
+    const feed = doc.feed;
+    const entries = feed.entry
+      ? Array.isArray(feed.entry)
+        ? feed.entry
+        : [feed.entry]
+      : [];
+    return {
+      title: pickFirstText(feed.title),
+      items: entries,
+      type: "atom",
+    };
+  }
+
+  return { title: "", items: [], type: "unknown" };
+}
+
+function normalizeItems(rawItems, type) {
+  const out = [];
+
+  for (const it of rawItems) {
+    if (type === "rss") {
+      const title = pickFirstText(it.title);
+      const link = pickFirstText(it.link);
+      const pubDate =
+        toIsoDateMaybe(pickFirstText(it.pubDate)) ||
+        toIsoDateMaybe(pickFirstText(it["dc:date"]));
+      const description = stripHtml(pickFirstText(it.description));
+      const image = extractImage(it);
+
+      if (!title || !link) continue;
+
+      out.push({
+        title,
+        url: link,
+        publishedAt: pubDate,
+        excerpt: description,
+        image,
+      });
+      continue;
+    }
+
+    if (type === "atom") {
+      const title = pickFirstText(it.title);
+      let link = "";
+      if (it.link) {
+        const links = Array.isArray(it.link) ? it.link : [it.link];
+        const alt =
+          links.find((l) => (l?.["@_rel"] || "alternate") === "alternate") ||
+          links[0];
+        link = alt?.["@_href"] || alt?.href || "";
+      }
+      const pubDate =
+        toIsoDateMaybe(pickFirstText(it.published)) ||
+        toIsoDateMaybe(pickFirstText(it.updated));
+      const summary = stripHtml(pickFirstText(it.summary));
+      const content = stripHtml(pickFirstText(it.content));
+      const image = extractImage(it);
+
+      if (!title || !link) continue;
+
+      out.push({
+        title,
+        url: link,
+        publishedAt: pubDate,
+        excerpt: summary || content,
+        image,
+      });
+      continue;
+    }
+  }
+
+  out.sort(
+    (a, b) =>
+      (Date.parse(b.publishedAt || "") || 0) -
+      (Date.parse(a.publishedAt || "") || 0)
+  );
+
+  return out;
+}
 
 async function loadFeed(feed) {
-  const res = await parser.parseURL(feed.url);
-
-  const items = (res.items || [])
-    .map((it) => {
-      const title = (it.title || "").trim();
-      const url = (it.link || "").trim();
-      const publishedAt =
-        toIsoDateMaybe(it.isoDate) ||
-        toIsoDateMaybe(it.pubDate) ||
-        toIsoDateMaybe(it.published) ||
-        null;
-
-      const excerpt = stripHtml(it.contentSnippet || it.summary || it.content || "");
-      const image = pickImageFromItem(it);
-
-      return { title, url, publishedAt, excerpt, image };
-    })
-    .filter((x) => x.title && x.url)
-    .sort((a, b) => (Date.parse(b.publishedAt || "") || 0) - (Date.parse(a.publishedAt || "") || 0));
+  const xml = await fetchText(feed.url);
+  const parsed = parseFeed(xml);
+  const items = normalizeItems(parsed.items, parsed.type);
 
   return {
-    feedTitle: (res.title || feed.name || "").trim(),
+    feedTitle: parsed.title || feed.name,
     items,
   };
 }
@@ -173,18 +296,27 @@ async function geminiFetchJson(url, opts, { retries = 3 } = {}) {
 
   while (true) {
     attempt++;
-    const res = await fetch(url, opts);
+    const res = await fetch(url, {
+      ...opts,
+      headers: {
+        ...(opts.headers || {}),
+        Connection: "close",
+      },
+    });
+
     const text = await res.text();
 
     if (res.ok) {
-      return JSON.parse(text);
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error(`Gemini JSON parse error: ${text}`);
+      }
     }
 
-    // Retry seulement sur erreurs “transitoires”
-    if ((res.status === 503 || res.status === 429) && attempt < retries) {
-      const wait = 1500 * attempt;
-      console.warn(`[gemini] ${res.status} retry ${attempt}/${retries} in ${wait}ms`);
-      await sleep(wait);
+    if (res.status === 503 && attempt < retries) {
+      console.warn(`[gemini] 503 unavailable, retry ${attempt}/${retries}`);
+      await sleep(3000);
       continue;
     }
 
@@ -222,7 +354,6 @@ async function pickGeminiModel(apiKey, version = "v1") {
     return forced;
   }
 
-  // 1) Tentative ListModels (peut être down)
   try {
     const models = await listModels(apiKey, version);
     const usable = models
@@ -235,17 +366,18 @@ async function pickGeminiModel(apiKey, version = "v1") {
       return usable[0];
     }
   } catch (e) {
-    console.warn(`[gemini] ListModels failed, will fallback. reason: ${e.message}`);
+    console.warn(
+      `[gemini] listModels failed, fallback to known models. reason: ${e.message}`
+    );
   }
 
-  // 2) Fallback “probables”
   const fallback = [
+    "models/gemini-2.5-flash",
+    "models/gemini-2.0-flash",
     "models/gemini-1.5-flash-latest",
     "models/gemini-1.5-pro-latest",
     "models/gemini-1.5-flash",
     "models/gemini-1.5-pro",
-    "models/gemini-2.0-flash",
-    "models/gemini-2.0-pro",
   ];
 
   console.log(`[gemini] fallback model candidate: ${fallback[0]}`);
@@ -256,7 +388,12 @@ async function generateContent(apiKey, modelName, prompt, version = "v1") {
   const url = `${geminiBase(version)}/${modelName}:generateContent?key=${apiKey}`;
 
   const body = {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: prompt }],
+      },
+    ],
     generationConfig: {
       temperature: 0.4,
       maxOutputTokens: 450,
@@ -274,16 +411,19 @@ async function generateContent(apiKey, modelName, prompt, version = "v1") {
   );
 
   const text =
-    data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("")?.trim() || "";
+    data?.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text)
+      .join("")
+      ?.trim() || "";
 
   return text;
 }
 
 function safeJsonExtract(text) {
-  const first = text.indexOf("{");
-  const last = text.lastIndexOf("}");
-  if (first !== -1 && last !== -1 && last > first) {
-    const slice = text.slice(first, last + 1);
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const slice = text.slice(firstBrace, lastBrace + 1);
     try {
       return JSON.parse(slice);
     } catch {
@@ -295,16 +435,19 @@ function safeJsonExtract(text) {
 
 function buildPrompt({ category, feedName, country, items }) {
   const top = items.slice(0, 6);
+
   const sources = top
     .map((it, idx) => {
+      const title = it.title;
       const excerpt = it.excerpt ? it.excerpt.slice(0, 260) : "";
-      return `${idx + 1}. ${it.title}\n   ${excerpt}\n   ${it.url}`;
+      const url = it.url;
+      return `${idx + 1}. ${title}\n   ${excerpt}\n   ${url}`;
     })
     .join("\n\n");
 
   return `
 Tu es un rédacteur de flash info.
-Tu dois produire UN seul flash synthétique, clair, court et utile.
+Tu dois produire UN seul "flash" synthétique, clair, court et utile.
 
 Contexte:
 - Catégorie: ${category}
@@ -312,26 +455,27 @@ Contexte:
 - Pays: ${country}
 
 Contraintes:
-- Titre court (max ~90 caractères)
-- Résumé 2 à 3 phrases (pas plus)
-- Style neutre, pas sensationnaliste
-- Ne pas inventer de faits
-- Si plusieurs items parlent du même sujet, fusionne-les ; sinon choisis le sujet dominant
+- Le titre doit être court et percutant (max ~90 caractères).
+- Le résumé doit faire 2 à 3 phrases (pas plus).
+- Style neutre, pas sensationnaliste.
+- Ne pas inventer des faits.
+- Si les items semblent parler d'un même sujet, fusionne-les. Sinon, choisis le sujet dominant.
 
-Réponds STRICTEMENT en JSON avec EXACTEMENT ces clés :
+Tu dois répondre STRICTEMENT en JSON, avec exactement ces clés :
 {
   "title": "...",
   "summary": "..."
 }
 
-Items (titres + extraits + liens):
+Voici les items (titres + extraits + liens):
 ${sources}
 `.trim();
 }
 
-async function synthesizeOne({ apiKey, version, baseModel, feed }) {
+async function synthesizeOne({ apiKey, version, modelName, feed }) {
   const { feedTitle, items } = await loadFeed(feed);
-  console.log(`[rss] ok ${feed.name}`);
+
+  console.log(`[rss] ok ${feed.name} (${feed.category})`);
 
   if (!items.length) {
     return {
@@ -345,7 +489,6 @@ async function synthesizeOne({ apiKey, version, baseModel, feed }) {
       url: feed.url,
       image: null,
       updatedAt: new Date().toISOString(),
-      model: null,
     };
   }
 
@@ -356,19 +499,20 @@ async function synthesizeOne({ apiKey, version, baseModel, feed }) {
     items,
   });
 
-  // Chaîne de fallback modèles
-  const candidates = [
-    baseModel,
+  const fallbackModels = [
+    modelName,
+    "models/gemini-2.5-flash",
+    "models/gemini-2.0-flash",
     "models/gemini-1.5-flash-latest",
     "models/gemini-1.5-pro-latest",
     "models/gemini-1.5-flash",
     "models/gemini-1.5-pro",
   ].filter((v, i, a) => v && a.indexOf(v) === i);
 
-  let usedModel = candidates[0];
   let text = "";
+  let usedModel = fallbackModels[0];
 
-  for (const m of candidates) {
+  for (const m of fallbackModels) {
     try {
       usedModel = m;
       text = await generateContent(apiKey, m, prompt, version);
@@ -376,35 +520,38 @@ async function synthesizeOne({ apiKey, version, baseModel, feed }) {
     } catch (e) {
       const msg = String(e.message || e);
 
-      // Modèle introuvable / méthode non supportée => essayer suivant
       if (
         msg.includes("NOT_FOUND") ||
         msg.includes("not found") ||
-        msg.includes("not supported") ||
-        msg.includes("is not found")
+        msg.includes("not supported")
       ) {
-        console.warn(`[gemini] model failed (${m}), trying next…`);
+        console.warn(
+          `[gemini] model failed (${m}), trying next. reason: ${msg.slice(0, 180)}`
+        );
         continue;
       }
 
-      // Autre erreur => on remonte
       throw e;
     }
   }
 
   if (!text) {
-    throw new Error("[gemini] empty response after trying model candidates");
+    throw new Error("[gemini] empty response after trying fallback models");
   }
 
   const json = safeJsonExtract(text);
-  const title = (json?.title && String(json.title).trim()) || items[0].title || `${feedTitle}: mise à jour`;
-  const summary = (json?.summary && String(json.summary).trim()) || "Résumé indisponible.";
+  const title =
+    (json?.title && String(json.title).trim()) ||
+    items[0].title ||
+    `${feedTitle}: mise à jour`;
+  const summary =
+    (json?.summary && String(json.summary).trim()) || "Résumé indisponible.";
 
   const topImage = items.find((it) => it.image)?.image || null;
   const topUrl = items[0].url;
 
   return {
-    id: stableId(feed.id, topUrl),
+    id: stableId(feed.id, items[0].url),
     category: feed.category,
     country: feed.country,
     source: feed.name,
@@ -454,16 +601,17 @@ async function main() {
 
   await ensureDir(DATA_DIR);
 
-  // On choisit un modèle “base” une fois
-  const baseModel = await pickGeminiModel(apiKey, version);
+  const modelName = await pickGeminiModel(apiKey, version);
 
   const results = [];
+
   for (const feed of FEEDS) {
     try {
-      const card = await synthesizeOne({ apiKey, version, baseModel, feed });
+      const card = await synthesizeOne({ apiKey, version, modelName, feed });
       results.push(card);
     } catch (e) {
-      console.error(`[feed] failed ${feed.name}: ${e.message}`);
+      console.error(`[feed] failed ${feed.name} (${feed.category}): ${e.message}`);
+
       results.push({
         id: stableId(feed.id, "error"),
         category: feed.category,
@@ -471,12 +619,12 @@ async function main() {
         source: feed.name,
         sourcesCount: 0,
         title: `${feed.name}: erreur de génération`,
-        summary: "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
+        summary:
+          "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
         url: feed.url,
         image: null,
         updatedAt: new Date().toISOString(),
         error: String(e.message || e),
-        model: null,
       });
     }
   }
@@ -505,4 +653,20 @@ async function main() {
   console.log(`[ingest] wrote data/home.json and ${byCat.size} category files`);
 }
 
-await main();
+// ✅ Exit propre + évite les runs qui “tournent dans le vide”
+process.on("unhandledRejection", (err) => {
+  console.error("[fatal] unhandledRejection:", err);
+  process.exit(1);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[fatal] uncaughtException:", err);
+  process.exit(1);
+});
+
+try {
+  await main();
+  setTimeout(() => process.exit(0), 50);
+} catch (err) {
+  console.error("[fatal] main failed:", err);
+  process.exit(1);
+}
