@@ -3,7 +3,7 @@
 // Dépendance: rss-parser
 //
 // Objectif :
-// - Fetch RSS/Atom
+// - Fetch RSS/Atom via fetch natif
 // - Parse via rss-parser.parseString(xml) (pas de fetch interne -> pas de undici)
 // - Synthèse via Gemini -> FR
 // - Écrit data/home.json + data/{categorie}.json
@@ -23,9 +23,8 @@ console.log(`[ingest] start ${startedAt}`);
 
 const DATA_DIR = path.resolve("data");
 
-// ⚠️ Catégories côté app :
-// home/world/local/economy/sport/tech/entertainment
-// Ici on reste sur: monde, economie, sport, tech (comme tes JSON actuels)
+// ⚠️ Catégories JSON actuelles côté repo (d'après tes fichiers data/)
+// home.json + monde/economie/sport/tech
 const FEEDS = [
   {
     id: "bbc-world",
@@ -111,8 +110,7 @@ function clampText(s, n) {
 function extractImageFromItem(item) {
   // rss-parser expose souvent:
   // - item.enclosure.url
-  // - item.itunes.image (rare)
-  // - item["media:content"] si customFields
+  // - item["media:content"] / ["media:thumbnail"] si customFields
   if (item?.enclosure?.url) return item.enclosure.url;
 
   const mediaContent = item?.["media:content"];
@@ -127,8 +125,12 @@ function extractImageFromItem(item) {
     if (mediaThumb.$?.url) return mediaThumb.$.url;
   }
 
-  // fallback: tenter une img dans content
-  const html = item?.["content:encoded"] || item?.content || item?.summary || item?.contentSnippet;
+  const html =
+    item?.["content:encoded"] ||
+    item?.content ||
+    item?.summary ||
+    item?.contentSnippet ||
+    "";
   const m = pickStr(html).match(/<img[^>]+src=["']([^"']+)["']/i);
   if (m?.[1]) return m[1];
 
@@ -161,15 +163,8 @@ async function fetchText(url, timeoutMs = 15000) {
 
 const parser = new Parser({
   timeout: 15000,
-  // On récupère quelques champs utiles (si présents)
   customFields: {
-    item: [
-      "content:encoded",
-      "media:content",
-      "media:thumbnail",
-      "dc:creator",
-      "creator",
-    ],
+    item: ["content:encoded", "media:content", "media:thumbnail", "dc:creator", "creator"],
   },
 });
 
@@ -198,26 +193,16 @@ async function loadFeed(feed) {
 
       if (!title || !url) return null;
 
-      return {
-        title,
-        url,
-        publishedAt,
-        excerpt,
-        image,
-      };
+      return { title, url, publishedAt, excerpt, image };
     })
     .filter(Boolean);
 
   items.sort(
     (a, b) =>
-      (Date.parse(b.publishedAt || "") || 0) -
-      (Date.parse(a.publishedAt || "") || 0)
+      (Date.parse(b.publishedAt || "") || 0) - (Date.parse(a.publishedAt || "") || 0)
   );
 
-  return {
-    feedTitle: pickStr(parsed.title || feed.name),
-    items,
-  };
+  return { feedTitle: pickStr(parsed.title || feed.name), items };
 }
 
 // ---------------------------
@@ -228,8 +213,17 @@ function geminiBase(version) {
   return `https://generativelanguage.googleapis.com/${version}`;
 }
 
-async function geminiFetchJson(url, opts, { retries = 2 } = {}) {
+function parseRetryAfterSeconds(headers) {
+  // Gemini/Google peut renvoyer Retry-After (secondes)
+  const ra = headers?.get?.("retry-after");
+  if (!ra) return null;
+  const n = Number(ra);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+async function geminiFetchJson(url, opts, { retries = 3 } = {}) {
   let attempt = 0;
+
   while (true) {
     attempt++;
     const res = await fetch(url, opts);
@@ -243,11 +237,15 @@ async function geminiFetchJson(url, opts, { retries = 2 } = {}) {
       }
     }
 
-    // retry 503 / 429
-    if ((res.status === 503 || res.status === 429) && attempt <= retries) {
-      const wait = res.status === 429 ? 2500 : 2000;
-      console.warn(`[gemini] ${res.status} retry ${attempt}/${retries}`);
-      await sleep(wait);
+    // Retry 429 / 503 avec backoff + Retry-After si présent
+    if ((res.status === 429 || res.status === 503) && attempt <= retries) {
+      const retryAfter = parseRetryAfterSeconds(res.headers);
+      const waitMs =
+        (retryAfter ? retryAfter * 1000 : 0) ||
+        (res.status === 429 ? 2500 * attempt : 2000 * attempt);
+
+      console.warn(`[gemini] ${res.status} retry ${attempt}/${retries} (wait ${Math.round(waitMs)}ms)`);
+      await sleep(waitMs);
       continue;
     }
 
@@ -265,8 +263,8 @@ async function generateContent(apiKey, version, modelName, prompt, timeoutMs = 2
     const body = {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.25,
-        maxOutputTokens: 380,
+        temperature: 0.2,
+        maxOutputTokens: 420,
       },
     };
 
@@ -278,14 +276,11 @@ async function generateContent(apiKey, version, modelName, prompt, timeoutMs = 2
         body: JSON.stringify(body),
         signal: ctrl.signal,
       },
-      { retries: 2 }
+      { retries: 3 }
     );
 
     const text =
-      data?.candidates?.[0]?.content?.parts
-        ?.map((p) => p.text)
-        .join("")
-        ?.trim() || "";
+      data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("")?.trim() || "";
 
     return text;
   } finally {
@@ -293,7 +288,7 @@ async function generateContent(apiKey, version, modelName, prompt, timeoutMs = 2
   }
 }
 
-// Extraction JSON plus robuste (balancement d'accolades)
+// Extraction JSON robuste (balancement d'accolades)
 function extractFirstJsonObject(text) {
   const s = pickStr(text);
   const start = s.indexOf("{");
@@ -322,8 +317,8 @@ function buildPrompt({ language, category, feedName, country, items }) {
 
   const sources = top
     .map((it, idx) => {
-      const title = clampText(it.title, 120);
-      const excerpt = clampText(it.excerpt, 240);
+      const title = clampText(it.title, 130);
+      const excerpt = clampText(it.excerpt, 260);
       return `${idx + 1}. ${title}\n   ${excerpt}\n   ${it.url}`;
     })
     .join("\n\n");
@@ -379,26 +374,24 @@ ${raw}
 `.trim();
 }
 
-async function runGeminiWithFallback({ apiKey, version, model, prompt, language }) {
+async function runGeminiWithFallback({ apiKey, version, prompt, language }) {
+  // Important: ne pas multiplier les modèles en boucle si 429 (ça empire).
+  // On garde une liste courte.
   const candidates = [
     (process.env.GEMINI_MODEL || "").trim(),
-    model,
     "models/gemini-2.5-flash",
     "models/gemini-2.0-flash",
     "models/gemini-1.5-flash-latest",
-    "models/gemini-1.5-flash",
-    "models/gemini-1.5-pro-latest",
   ].filter((v, i, a) => v && a.indexOf(v) === i);
 
   let lastErr = null;
 
   for (const m of candidates) {
     try {
-      // 1) call normal
       let text = await generateContent(apiKey, version, m, prompt, 25000);
       let json = extractFirstJsonObject(text);
 
-      // 2) repair pass si besoin
+      // Repair pass (1 seule fois)
       if (!json) {
         const repairPrompt = buildRepairPrompt(language, text);
         const repaired = await generateContent(apiKey, version, m, repairPrompt, 25000);
@@ -410,34 +403,50 @@ async function runGeminiWithFallback({ apiKey, version, model, prompt, language 
       // Validation minimaliste
       const title = pickStr(json.title).trim();
       const summary = pickStr(json.summary).trim();
-      const sections = json.sections && typeof json.sections === "object" ? json.sections : {};
+      const sections =
+        json.sections && typeof json.sections === "object" ? json.sections : {};
       const known = pickStr(sections.known).trim();
       const assumed = pickStr(sections.assumed).trim();
       const unknown = pickStr(sections.unknown).trim();
+
+      if (!title && !summary) throw new Error("Gemini JSON missing title/summary.");
 
       return {
         usedModel: m,
         title,
         summary,
-        sections: { known, assumed, unknown },
+        sections: {
+          known: known || "—",
+          assumed: assumed || "—",
+          unknown: unknown || "—",
+        },
       };
     } catch (e) {
       const msg = String(e?.message || e);
       lastErr = e;
 
-      // Si modèle introuvable / unsupported -> next
-      if (msg.includes("NOT_FOUND") || msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("not supported")) {
+      // Modèle non trouvé/unsupported -> next
+      if (
+        msg.includes("NOT_FOUND") ||
+        msg.toLowerCase().includes("not found") ||
+        msg.toLowerCase().includes("not supported")
+      ) {
         console.warn(`[gemini] model failed (${m}), trying next.`);
         continue;
       }
 
-      // 503/429/timeout -> next modèle peut aider, on tente
-      if (msg.includes("503") || msg.includes("429") || msg.toLowerCase().includes("aborted")) {
+      // 429/503/timeout -> on essaie next modèle, mais avec pause pour éviter la rafale
+      if (
+        msg.includes("429") ||
+        msg.includes("503") ||
+        msg.toLowerCase().includes("aborted")
+      ) {
         console.warn(`[gemini] transient error with (${m}), trying next.`);
+        await sleep(2500);
         continue;
       }
 
-      // Erreur “vraie” -> stop
+      // Autre erreur -> stop
       throw e;
     }
   }
@@ -470,7 +479,7 @@ function groupBy(arr, key) {
 }
 
 // ---------------------------
-// Concurrency (simple)
+// Concurrency limiter
 // ---------------------------
 
 function pLimit(limit) {
@@ -532,22 +541,21 @@ async function synthesizeOne({ apiKey, version, language, feed }) {
     items,
   });
 
-  // Modèle par défaut (celui que tu as vu passer dans les logs)
-  const defaultModel = "models/gemini-2.5-flash";
   const out = await runGeminiWithFallback({
     apiKey,
     version,
-    model: defaultModel,
     prompt,
     language,
   });
 
-  // fallback titre/résumé si Gemini renvoie vide (rare, mais on blinde)
   const title = out.title || items[0].title;
   const summary = out.summary || "Résumé indisponible.";
 
   const topImage = items.find((it) => it.image)?.image || null;
   const topUrl = items[0].url;
+
+  // Petite pause entre feeds -> évite 429 (crucial)
+  await sleep(1500);
 
   return {
     id: stableId(feed.id, topUrl),
@@ -557,11 +565,7 @@ async function synthesizeOne({ apiKey, version, language, feed }) {
     sourcesCount: Math.min(items.length, 6),
     title,
     summary,
-    sections: {
-      known: out.sections?.known || "—",
-      assumed: out.sections?.assumed || "—",
-      unknown: out.sections?.unknown || "—",
-    },
+    sections: out.sections || { known: "—", assumed: "—", unknown: "—" },
     url: topUrl,
     image: topImage,
     updatedAt: new Date().toISOString(),
@@ -574,12 +578,12 @@ async function main() {
   if (!apiKey) throw new Error("GEMINI_API_KEY manquante (GitHub Secrets).");
 
   const version = (process.env.GEMINI_API_VERSION || "v1").trim();
-  const language = "fr"; // plus tard: basé sur userPrefs si tu le veux
+  const language = "fr";
 
   await ensureDir(DATA_DIR);
 
-  // Concurrency = 2 (vite, mais safe)
-  const limit = pLimit(2);
+  // ✅ IMPORTANT: Concurrency = 1 pour éviter les 429
+  const limit = pLimit(1);
 
   const tasks = FEEDS.map((feed) =>
     limit(async () => {
@@ -609,13 +613,10 @@ async function main() {
 
   const results = await Promise.all(tasks);
 
-  // tri : par date desc
-  results.sort(
-    (a, b) =>
-      (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0)
-  );
+  // tri par date desc
+  results.sort((a, b) => (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0));
 
-  // home.json = tout
+  // home.json
   await writeJson(path.join(DATA_DIR, "home.json"), {
     generatedAt: new Date().toISOString(),
     count: results.length,
