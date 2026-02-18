@@ -3,38 +3,32 @@ name: Ingest News (Gemini)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "0 * * * *"   # toutes les heures
 
 permissions:
   contents: write
-
-concurrency:
-  group: ingest-news
-  cancel-in-progress: true
 
 jobs:
   ingest:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # IMPORTANT: pas de cache pour éviter les comportements bizarres + erreurs lock
-      - name: Setup Node (no cache)
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "" # désactive le cache
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
 
       - name: Generate data
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_VERSION: "v1"
-        run: timeout 300s node scripts/ingest.mjs
+        run: node scripts/ingest.mjs
 
       - name: Commit & push data
         run: |
@@ -45,8 +39,7 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
-            exit 0
+          else
+            git commit -m "chore: update feeds"
+            git push
           fi
-
-          git commit -m "chore: update feeds"
-          git push
