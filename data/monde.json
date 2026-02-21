@@ -1,26 +1,25 @@
 {
-  "generatedAt": "2026-02-21T10:57:58.616Z",
+  "generatedAt": "2026-02-21T11:47:11.088Z",
   "category": "monde",
   "count": 2,
   "items": [
     {
-      "id": "1813ab65b921",
+      "id": "f65b255d6b21",
       "category": "monde",
       "country": "FR",
       "source": "France24",
-      "sourcesCount": 0,
-      "title": "France24: erreur de génération",
-      "summary": "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
+      "sourcesCount": 6,
+      "title": "Tensions géopolitiques",
+      "summary": "Résumé indisponible.",
       "sections": {
         "known": "—",
         "assumed": "—",
         "unknown": "—"
       },
-      "url": "https://www.france24.com/fr/rss",
-      "image": null,
-      "updatedAt": "2026-02-21T10:56:55.497Z",
-      "error": "Gemini did not return valid JSON after repair.",
-      "model": null
+      "url": "https://www.france24.com/fr/vid%C3%A9o/20260221-un-porte-avions-am%C3%A9ricain-entre-en-m%C3%A9diterran%C3%A9e-sur-fond-de-menace-de-frappes-en-iran",
+      "image": "https://s.france24.com/media/display/018c22d2-0f12-11f1-bd07-005056a90284/w:1024/p:16x9/FR-20260221-091328-091429-CS.jpg",
+      "updatedAt": "2026-02-21T11:45:44.355Z",
+      "model": "models/gemini-2.5-flash"
     },
     {
       "id": "b0c98febe7fa",
@@ -37,7 +36,7 @@
       },
       "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
       "image": null,
-      "updatedAt": "2026-02-21T10:56:50.967Z",
+      "updatedAt": "2026-02-21T11:45:23.316Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     }
