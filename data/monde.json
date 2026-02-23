@@ -1,25 +1,26 @@
 {
-  "generatedAt": "2026-02-23T11:28:47.175Z",
+  "generatedAt": "2026-02-23T14:39:26.972Z",
   "category": "monde",
   "count": 2,
   "items": [
     {
-      "id": "8cd4d2e14e90",
+      "id": "1813ab65b921",
       "category": "monde",
       "country": "FR",
       "source": "France24",
-      "sourcesCount": 6,
-      "title": "Tensions en Iran",
-      "summary": "Résumé indisponible.",
+      "sourcesCount": 0,
+      "title": "France24: erreur de génération",
+      "summary": "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
       "sections": {
         "known": "—",
         "assumed": "—",
         "unknown": "—"
       },
-      "url": "https://www.france24.com/fr/%C3%A9missions/focus/20260223-des-drones-pour-l-ukraine-en-belgique-des-b%C3%A9n%C3%A9voles-agissent-dans-l-ombre",
-      "image": "https://s.france24.com/media/display/bf678536-10a6-11f1-8363-005056a97e36/w:1024/p:16x9/capture-2062357182699c331a42cec5-67014174.jpg",
-      "updatedAt": "2026-02-23T11:27:53.570Z",
-      "model": "models/gemini-2.5-flash"
+      "url": "https://www.france24.com/fr/rss",
+      "image": null,
+      "updatedAt": "2026-02-23T14:38:10.745Z",
+      "error": "Gemini did not return valid JSON after repair.",
+      "model": null
     },
     {
       "id": "b0c98febe7fa",
@@ -36,7 +37,7 @@
       },
       "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
       "image": null,
-      "updatedAt": "2026-02-23T11:27:47.697Z",
+      "updatedAt": "2026-02-23T14:38:05.737Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     }
