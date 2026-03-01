@@ -1,26 +1,25 @@
 {
-  "generatedAt": "2026-03-01T09:00:19.060Z",
+  "generatedAt": "2026-03-01T09:55:51.788Z",
   "category": "economie",
   "count": 1,
   "items": [
     {
-      "id": "0f06fca5a84d",
+      "id": "605f7987baaa",
       "category": "economie",
       "country": "FR",
       "source": "Le Monde",
-      "sourcesCount": 0,
-      "title": "Le Monde: erreur de génération",
-      "summary": "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
+      "sourcesCount": 6,
+      "title": "Tensions géopolitiques",
+      "summary": "Ce document aborde les récentes tensions géopolitiques mondiales, leurs causes profondes et leurs potentielles répercussions sur la stabilité internationale.",
       "sections": {
         "known": "—",
         "assumed": "—",
         "unknown": "—"
       },
-      "url": "https://www.lemonde.fr/economie/rss_full.xml",
-      "image": null,
-      "updatedAt": "2026-03-01T08:59:59.018Z",
-      "error": "Gemini did not return valid JSON after repair.",
-      "model": null
+      "url": "https://www.lemonde.fr/international/article/2026/03/01/la-belgique-avec-le-soutien-de-la-france-arraisonne-un-navire-suspecte-d-appartenir-a-la-flotte-fantome-russe_6668908_3210.html",
+      "image": "https://img.lemde.fr/2026/03/01/283/0/5997/2998/644/322/60/0/7487a1d_ftp-1-exulgh2d7ca3-5330520-01-06.jpg",
+      "updatedAt": "2026-03-01T09:55:13.065Z",
+      "model": "models/gemini-2.5-flash"
     }
   ]
 }
