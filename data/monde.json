@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-05T10:10:19.223Z",
+  "generatedAt": "2026-03-05T12:01:20.580Z",
   "category": "monde",
   "count": 2,
   "items": [
@@ -18,7 +18,7 @@
       },
       "url": "https://www.france24.com/fr/rss",
       "image": null,
-      "updatedAt": "2026-03-05T10:09:25.473Z",
+      "updatedAt": "2026-03-05T12:00:25.061Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     },
@@ -37,7 +37,7 @@
       },
       "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
       "image": null,
-      "updatedAt": "2026-03-05T10:09:20.294Z",
+      "updatedAt": "2026-03-05T12:00:20.314Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     }
