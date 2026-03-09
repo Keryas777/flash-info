@@ -1,24 +1,25 @@
 {
-  "generatedAt": "2026-03-09T11:12:02.942Z",
+  "generatedAt": "2026-03-09T15:15:46.147Z",
   "count": 5,
   "items": [
     {
-      "id": "cf9c9dd939eb",
+      "id": "9744fe31dafc",
       "category": "sport",
       "country": "FR",
       "source": "Le Monde",
-      "sourcesCount": 6,
-      "title": "Jeux Paralympiques",
-      "summary": "Résumé indisponible.",
+      "sourcesCount": 0,
+      "title": "Le Monde: erreur de génération",
+      "summary": "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
       "sections": {
         "known": "—",
         "assumed": "—",
         "unknown": "—"
       },
-      "url": "https://www.lemonde.fr/sport/article/2026/03/09/jeux-paralympiques-2026-nouvelle-medaille-d-argent-pour-aurelie-richard-premier-titre-pour-la-russie-avec-varvara-voronchikhina_6670080_3242.html",
-      "image": "https://img.lemde.fr/2026/03/09/123/0/4057/2028/644/322/60/0/27f6d1c_ftp-1-dxmvawgxs0qc-2026-03-09t084007z-285162552-up1em390o2tpg-rtrmadp-3-paralympics-2026-paraalpine.JPG",
-      "updatedAt": "2026-03-09T11:12:02.942Z",
-      "model": "models/gemini-2.5-flash"
+      "url": "https://www.lemonde.fr/sport/rss_full.xml",
+      "image": null,
+      "updatedAt": "2026-03-09T15:15:46.147Z",
+      "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
+      "model": null
     },
     {
       "id": "0f06fca5a84d",
@@ -35,7 +36,7 @@
       },
       "url": "https://www.lemonde.fr/economie/rss_full.xml",
       "image": null,
-      "updatedAt": "2026-03-09T11:11:56.821Z",
+      "updatedAt": "2026-03-09T15:15:10.190Z",
       "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
       "model": null
     },
@@ -54,8 +55,8 @@
       },
       "url": "https://www.theverge.com/rss/index.xml",
       "image": null,
-      "updatedAt": "2026-03-09T11:11:10.693Z",
-      "error": "Gemini did not return valid JSON after repair.",
+      "updatedAt": "2026-03-09T15:14:33.927Z",
+      "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
       "model": null
     },
     {
@@ -73,7 +74,7 @@
       },
       "url": "https://www.france24.com/fr/rss",
       "image": null,
-      "updatedAt": "2026-03-09T11:11:05.904Z",
+      "updatedAt": "2026-03-09T15:13:57.667Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     },
@@ -92,7 +93,7 @@
       },
       "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
       "image": null,
-      "updatedAt": "2026-03-09T11:11:00.043Z",
+      "updatedAt": "2026-03-09T15:13:52.032Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     }
