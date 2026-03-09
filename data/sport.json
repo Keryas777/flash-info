@@ -1,26 +1,25 @@
 {
-  "generatedAt": "2026-03-09T08:02:34.338Z",
+  "generatedAt": "2026-03-09T11:12:02.943Z",
   "category": "sport",
   "count": 1,
   "items": [
     {
-      "id": "9744fe31dafc",
+      "id": "cf9c9dd939eb",
       "category": "sport",
       "country": "FR",
       "source": "Le Monde",
-      "sourcesCount": 0,
-      "title": "Le Monde: erreur de génération",
-      "summary": "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
+      "sourcesCount": 6,
+      "title": "Jeux Paralympiques",
+      "summary": "Résumé indisponible.",
       "sections": {
         "known": "—",
         "assumed": "—",
         "unknown": "—"
       },
-      "url": "https://www.lemonde.fr/sport/rss_full.xml",
-      "image": null,
-      "updatedAt": "2026-03-09T08:02:34.336Z",
-      "error": "Gemini did not return valid JSON after repair.",
-      "model": null
+      "url": "https://www.lemonde.fr/sport/article/2026/03/09/jeux-paralympiques-2026-nouvelle-medaille-d-argent-pour-aurelie-richard-premier-titre-pour-la-russie-avec-varvara-voronchikhina_6670080_3242.html",
+      "image": "https://img.lemde.fr/2026/03/09/123/0/4057/2028/644/322/60/0/27f6d1c_ftp-1-dxmvawgxs0qc-2026-03-09t084007z-285162552-up1em390o2tpg-rtrmadp-3-paralympics-2026-paraalpine.JPG",
+      "updatedAt": "2026-03-09T11:12:02.942Z",
+      "model": "models/gemini-2.5-flash"
     }
   ]
 }
