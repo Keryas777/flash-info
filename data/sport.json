@@ -1,25 +1,26 @@
 {
-  "generatedAt": "2026-03-14T07:51:55.671Z",
+  "generatedAt": "2026-03-14T09:06:16.481Z",
   "category": "sport",
   "count": 1,
   "items": [
     {
-      "id": "307a48e51dba",
+      "id": "9744fe31dafc",
       "category": "sport",
       "country": "FR",
       "source": "Le Monde",
-      "sourcesCount": 6,
-      "title": "Actualités des Jeux Paralympiques",
-      "summary": "Résumé indisponible.",
+      "sourcesCount": 0,
+      "title": "Le Monde: erreur de génération",
+      "summary": "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
       "sections": {
         "known": "—",
         "assumed": "—",
         "unknown": "—"
       },
-      "url": "https://www.lemonde.fr/sport/article/2026/03/14/france-angleterre-les-ballons-hauts-arme-fatale-du-xv-tricolore-pour-s-envoler-vers-le-titre-dans-le-tournoi-des-six-nations_6671150_3242.html",
-      "image": "https://img.lemde.fr/2026/02/15/299/0/3500/1750/644/322/60/0/2ba49b7_ftp-1-igwc8lizqdgk-513a27bb6d0e4839ab0037c09bee04d0-0-9a05676700464a0380d517607bb401f4.jpg",
-      "updatedAt": "2026-03-14T07:51:55.670Z",
-      "model": "models/gemini-2.5-flash"
+      "url": "https://www.lemonde.fr/sport/rss_full.xml",
+      "image": null,
+      "updatedAt": "2026-03-14T09:06:16.479Z",
+      "error": "Gemini did not return valid JSON after repair.",
+      "model": null
     }
   ]
 }
