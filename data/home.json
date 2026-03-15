@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-15T19:21:28.391Z",
+  "generatedAt": "2026-03-15T21:00:57.496Z",
   "count": 5,
   "items": [
     {
@@ -17,7 +17,7 @@
       },
       "url": "https://www.lemonde.fr/sport/rss_full.xml",
       "image": null,
-      "updatedAt": "2026-03-15T19:21:28.391Z",
+      "updatedAt": "2026-03-15T21:00:57.496Z",
       "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
       "model": null
     },
@@ -36,7 +36,7 @@
       },
       "url": "https://www.lemonde.fr/economie/rss_full.xml",
       "image": null,
-      "updatedAt": "2026-03-15T19:20:52.703Z",
+      "updatedAt": "2026-03-15T21:00:21.680Z",
       "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
       "model": null
     },
@@ -55,7 +55,7 @@
       },
       "url": "https://www.theverge.com/rss/index.xml",
       "image": null,
-      "updatedAt": "2026-03-15T19:20:16.865Z",
+      "updatedAt": "2026-03-15T20:59:45.797Z",
       "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
       "model": null
     },
@@ -74,7 +74,7 @@
       },
       "url": "https://www.france24.com/fr/rss",
       "image": null,
-      "updatedAt": "2026-03-15T19:19:38.820Z",
+      "updatedAt": "2026-03-15T20:59:07.587Z",
       "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
       "model": null
     },
@@ -93,7 +93,7 @@
       },
       "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
       "image": null,
-      "updatedAt": "2026-03-15T19:19:02.929Z",
+      "updatedAt": "2026-03-15T20:58:31.633Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     }
