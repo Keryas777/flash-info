@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-23T07:16:22.324Z",
+  "generatedAt": "2026-03-23T09:01:49.408Z",
   "category": "tech",
   "count": 1,
   "items": [
@@ -18,7 +18,7 @@
       },
       "url": "https://www.theverge.com/rss/index.xml",
       "image": null,
-      "updatedAt": "2026-03-23T07:15:16.474Z",
+      "updatedAt": "2026-03-23T09:01:07.667Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     }
