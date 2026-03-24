@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-24T07:55:58.345Z",
+  "generatedAt": "2026-03-24T08:57:35.477Z",
   "category": "sport",
   "count": 1,
   "items": [
@@ -18,7 +18,7 @@
       },
       "url": "https://www.lemonde.fr/sport/rss_full.xml",
       "image": null,
-      "updatedAt": "2026-03-24T07:55:58.344Z",
+      "updatedAt": "2026-03-24T08:57:35.475Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     }
