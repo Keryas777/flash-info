@@ -1,25 +1,26 @@
 {
-  "generatedAt": "2026-03-25T08:56:42.799Z",
+  "generatedAt": "2026-03-25T09:59:35.959Z",
   "category": "sport",
   "count": 1,
   "items": [
     {
-      "id": "42d5b3628a70",
+      "id": "9744fe31dafc",
       "category": "sport",
       "country": "FR",
       "source": "Le Monde",
-      "sourcesCount": 6,
-      "title": "Actualités sportives",
-      "summary": "Résumé des dernières nouvelles sportives.",
+      "sourcesCount": 0,
+      "title": "Le Monde: erreur de génération",
+      "summary": "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
       "sections": {
         "known": "—",
         "assumed": "—",
         "unknown": "—"
       },
-      "url": "https://www.lemonde.fr/sport/article/2026/03/25/amber-glenn-cheffe-de-file-des-patineuses-artistiques-americaines-refend-la-glace-et-les-tabous-aux-mondiaux-de-prague_6674167_3242.html",
-      "image": "https://img.lemde.fr/2026/02/21/145/0/3884/1942/644/322/60/0/041909d_ftp-1-6fxpznqxnkro-8f46020b56bf4746a05b54d82ed2e04f-0-ffc462b4d05b4093b077256436a81aaf.jpg",
-      "updatedAt": "2026-03-25T08:56:42.798Z",
-      "model": "models/gemini-2.5-flash"
+      "url": "https://www.lemonde.fr/sport/rss_full.xml",
+      "image": null,
+      "updatedAt": "2026-03-25T09:59:35.958Z",
+      "error": "Gemini did not return valid JSON after repair.",
+      "model": null
     }
   ]
 }
