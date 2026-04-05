@@ -1,25 +1,26 @@
 {
-  "generatedAt": "2026-04-05T09:43:21.557Z",
+  "generatedAt": "2026-04-05T10:40:33.255Z",
   "category": "sport",
   "count": 1,
   "items": [
     {
-      "id": "cf923544c26b",
+      "id": "9744fe31dafc",
       "category": "sport",
       "country": "FR",
       "source": "Le Monde",
-      "sourcesCount": 6,
-      "title": "CAN 2025",
-      "summary": "Résumé indisponible.",
+      "sourcesCount": 0,
+      "title": "Le Monde: erreur de génération",
+      "summary": "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
       "sections": {
         "known": "—",
         "assumed": "—",
         "unknown": "—"
       },
-      "url": "https://www.lemonde.fr/afrique/article/2026/04/05/qui-a-gagne-la-can-2025-le-monde-devoile-les-coulisses-de-l-interminable-finale-maroc-senegal_6676880_3212.html",
-      "image": "https://img.lemde.fr/2026/04/03/0/0/4110/2055/644/322/60/0/75312ff_upload-1-tyrxz06fsggb-2026-01-18t211234z-1948312924-up1em1i1mwwls-rtrmadp-3-soccer-nations-sen-mar-1.JPG",
-      "updatedAt": "2026-04-05T09:43:21.555Z",
-      "model": "models/gemini-2.5-flash"
+      "url": "https://www.lemonde.fr/sport/rss_full.xml",
+      "image": null,
+      "updatedAt": "2026-04-05T10:40:33.253Z",
+      "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
+      "model": null
     }
   ]
 }
