@@ -1,25 +1,24 @@
 {
-  "generatedAt": "2026-04-12T05:29:05.629Z",
+  "generatedAt": "2026-04-12T07:19:41.443Z",
   "count": 5,
   "items": [
     {
-      "id": "9744fe31dafc",
+      "id": "44e744d90fb5",
       "category": "sport",
       "country": "FR",
       "source": "Le Monde",
-      "sourcesCount": 0,
-      "title": "Le Monde: erreur de génération",
-      "summary": "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
+      "sourcesCount": 6,
+      "title": "Succès français en rugby et cyclisme",
+      "summary": "La France a récemment brillé dans les disciplines du rugby et du cyclisme, démontrant une performance remarquable sur la scène internationale.",
       "sections": {
         "known": "—",
         "assumed": "—",
         "unknown": "—"
       },
-      "url": "https://www.lemonde.fr/sport/rss_full.xml",
-      "image": null,
-      "updatedAt": "2026-04-12T05:29:05.629Z",
-      "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
-      "model": null
+      "url": "https://www.lemonde.fr/sport/article/2026/04/12/boxe-le-britannique-tyson-fury-triomphe-du-russe-arslanbek-makhmudov-pour-son-retour-sur-le-ring_6679423_3242.html",
+      "image": "https://img.lemde.fr/2026/04/11/301/0/4845/2422/644/322/60/0/8768794_ftp-1-bxxqr5gmzxc9-2026-04-11t223624z-1587839484-up1em4b1qsn81-rtrmadp-3-boxing-heavyweight-fury-makhmudov.JPG",
+      "updatedAt": "2026-04-12T07:19:41.443Z",
+      "model": "models/gemini-2.5-flash"
     },
     {
       "id": "0f06fca5a84d",
@@ -36,7 +35,7 @@
       },
       "url": "https://www.lemonde.fr/economie/rss_full.xml",
       "image": null,
-      "updatedAt": "2026-04-12T05:28:29.413Z",
+      "updatedAt": "2026-04-12T07:19:32.266Z",
       "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
       "model": null
     },
@@ -55,8 +54,8 @@
       },
       "url": "https://www.theverge.com/rss/index.xml",
       "image": null,
-      "updatedAt": "2026-04-12T05:27:53.182Z",
-      "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
+      "updatedAt": "2026-04-12T07:18:50.864Z",
+      "error": "Gemini did not return valid JSON after repair.",
       "model": null
     },
     {
@@ -74,8 +73,8 @@
       },
       "url": "https://www.france24.com/fr/rss",
       "image": null,
-      "updatedAt": "2026-04-12T05:27:17.044Z",
-      "error": "Gemini API error 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-flash-latest is not found for API version v1, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
+      "updatedAt": "2026-04-12T07:18:45.574Z",
+      "error": "Gemini did not return valid JSON after repair.",
       "model": null
     },
     {
@@ -93,7 +92,7 @@
       },
       "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
       "image": null,
-      "updatedAt": "2026-04-12T05:26:30.768Z",
+      "updatedAt": "2026-04-12T07:18:40.697Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     }
