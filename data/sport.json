@@ -1,25 +1,26 @@
 {
-  "generatedAt": "2026-04-12T07:19:41.444Z",
+  "generatedAt": "2026-04-12T08:54:39.720Z",
   "category": "sport",
   "count": 1,
   "items": [
     {
-      "id": "44e744d90fb5",
+      "id": "9744fe31dafc",
       "category": "sport",
       "country": "FR",
       "source": "Le Monde",
-      "sourcesCount": 6,
-      "title": "Succès français en rugby et cyclisme",
-      "summary": "La France a récemment brillé dans les disciplines du rugby et du cyclisme, démontrant une performance remarquable sur la scène internationale.",
+      "sourcesCount": 0,
+      "title": "Le Monde: erreur de génération",
+      "summary": "Le flux a été récupéré mais la synthèse a échoué. Nouvelle tentative au prochain cycle.",
       "sections": {
         "known": "—",
         "assumed": "—",
         "unknown": "—"
       },
-      "url": "https://www.lemonde.fr/sport/article/2026/04/12/boxe-le-britannique-tyson-fury-triomphe-du-russe-arslanbek-makhmudov-pour-son-retour-sur-le-ring_6679423_3242.html",
-      "image": "https://img.lemde.fr/2026/04/11/301/0/4845/2422/644/322/60/0/8768794_ftp-1-bxxqr5gmzxc9-2026-04-11t223624z-1587839484-up1em4b1qsn81-rtrmadp-3-boxing-heavyweight-fury-makhmudov.JPG",
-      "updatedAt": "2026-04-12T07:19:41.443Z",
-      "model": "models/gemini-2.5-flash"
+      "url": "https://www.lemonde.fr/sport/rss_full.xml",
+      "image": null,
+      "updatedAt": "2026-04-12T08:54:39.719Z",
+      "error": "Gemini did not return valid JSON after repair.",
+      "model": null
     }
   ]
 }
