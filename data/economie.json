@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-17T07:53:41.541Z",
+  "generatedAt": "2026-04-17T09:22:28.285Z",
   "category": "economie",
   "count": 1,
   "items": [
@@ -18,7 +18,7 @@
       },
       "url": "https://www.lemonde.fr/economie/rss_full.xml",
       "image": null,
-      "updatedAt": "2026-04-17T07:53:05.157Z",
+      "updatedAt": "2026-04-17T09:22:21.342Z",
       "error": "Gemini did not return valid JSON after repair.",
       "model": null
     }
